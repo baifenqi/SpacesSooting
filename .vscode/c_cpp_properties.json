@@ -3,18 +3,21 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**", 
-                "D:/codelearng/stool package/sdl2/include"  // <--- 重点：这里必须加上你的 SDL 安装路径
+                "${workspaceFolder}/**",
+                "D:/codelearng/stool package/sdl2/include"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
                 "_UNICODE"
             ],
-            "compilerPath": "cl.exe", // 建议加上这一项，确保使用 MSVC 编译器
+            "compilerPath": "cl.exe",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-msvc-x64"
+            "intelliSenseMode": "windows-msvc-x64",
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ]
         }
     ],
     "version": 4

@@ -1,3 +1,3 @@
-D:/codelearng/SpacesSooting/build/CMakeFiles/_Windows.dir
-D:/codelearng/SpacesSooting/build/CMakeFiles/edit_cache.dir
-D:/codelearng/SpacesSooting/build/CMakeFiles/rebuild_cache.dir
+D:/codelearng/SpacesShooting/build/CMakeFiles/_Windows.dir
+D:/codelearng/SpacesShooting/build/CMakeFiles/edit_cache.dir
+D:/codelearng/SpacesShooting/build/CMakeFiles/rebuild_cache.dir

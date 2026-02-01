@@ -39,7 +39,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "d:/codelearng/SpacesSooting/build"
+			"value" : "d:/codelearng/SpacesShooting/build"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -491,7 +491,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/codelearng/SpacesSooting/build/CMakeFiles/pkgRedirects"
+			"value" : "D:/codelearng/SpacesShooting/build/CMakeFiles/pkgRedirects"
 		},
 		{
 			"name" : "CMAKE_GENERATOR",
@@ -551,7 +551,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "D:/codelearng/SpacesSooting"
+			"value" : "D:/codelearng/SpacesShooting"
 		},
 		{
 			"name" : "CMAKE_INSTALL_PREFIX",
@@ -1235,7 +1235,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/codelearng/SpacesSooting/build"
+			"value" : "D:/codelearng/SpacesShooting/build"
 		},
 		{
 			"name" : "SpaceShooting_IS_TOP_LEVEL",
@@ -1259,7 +1259,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/codelearng/SpacesSooting"
+			"value" : "D:/codelearng/SpacesShooting"
 		}
 	],
 	"kind" : "cache",
