@@ -1,0 +1,44 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: cl.exe 生成活动文件",
+            "command": "cl.exe",
+            "args": [
+                "/Zi",
+                "/EHsc",
+                "/nologo",
+                "/std:c++17",                 // 指定 C++ 标准
+                "/Fe:", "${workspaceFolder}/build/${fileBasenameNoExtension}.exe", // 输出到项目根目录下的 build 文件夹
+                "/Fd:", "${workspaceFolder}/build/${fileBasenameNoExtension}.pdb",  // pdb 调试文件也放那里
+                // --- 核心修改开始 ---
+                "/I", "${workspaceFolder}/include", // 告诉编译器去项目根目录的 include 文件夹找头文件
+                "/I", "D:/SDL2/include",            // 告诉编译器去 SDL 安装目录找头文件 (请修改为你的实际路径)
+                // --- 核心修改结束 ---
+                "${file}",
+                // --- 链接库配置开始 ---
+                "/link",
+                "/LIBPATH:${workspaceFolder}/lib",  // 如果你有自己的 lib 文件夹
+                "/LIBPATH:D:/SDL2/lib/x64",         // 指向 SDL 的 .lib 文件所在目录 (注意 x86 还是 x64)
+                "SDL2.lib",                         // 需要链接的 SDL 库文件名
+                "SDL2main.lib",
+                "Shell32.lib",                      // SDL2main 通常需要这个
+                "SubSystem:Console"                // 控制台程序，如果是纯窗口程序可改为 Windows
+                // --- 链接库配置结束 ---
+            ],
+            "options": {
+                // 关键修改：将工作目录设为项目根目录，这样相对路径才不会乱
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "编译器: cl.exe"
+        }
+    ]
+}

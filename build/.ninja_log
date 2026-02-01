@@ -1,0 +1,6 @@
+# ninja log v6
+874	992	7916453584332487	D:/codelearng/SpacesSooting/_Windows.exe	84e6185a8d373f44
+6	356	7912235415817655	CMakeFiles/_Windows.dir/main.cpp.obj	d13bdc0b8e23863b
+10	857	7916453575682733	CMakeFiles/_Windows.dir/src/game.cpp.obj	9254af4a54786a44
+13	874	7916453575712743	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	630656ab41f74c9d
+7	396	7915580834337449	CMakeFiles/_Windows.dir/src/main.cpp.obj	6e0154c4c9b4dffd

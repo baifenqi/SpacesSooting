@@ -1,0 +1,7 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.compilerPath": "cl.exe",
+    "commentTranslate.source": "intellsmi.deepl-translate-deepl",
+    "hoverTranslator.apiKey": "sk-83ed7450d66f4169b2d338018992e990",
+    "Codegeex.RepoIndex": true
+}
