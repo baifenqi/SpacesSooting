@@ -42,6 +42,23 @@ public:
     void enemyExplode(Enemy* enemy);
     void updateExplosions(float deltaTime);
     void renderExplosions();
+
+    //道具控制
+    void dropItem(Enemy* enemy);//敌机死亡掉落道具
+    void playerGetItem(Item* item);//玩家获得道具
+    void updateItems(float deltaTime);
+    void renderItems();
+
+    //cd控制
+    void skillCDPackEffect();
+
+    //技能控制
+    void initSkill();
+    void activateSkill(SkillType skillType);
+    void updateSkill(float deltaTime);
+    void renderSkill();
+
+    
 private:   
     Game& game;
     bool isDeath = false;//玩家死亡?
@@ -67,6 +84,14 @@ private:
     Explosion explosionTemplate;
     std::list<Explosion*> explosions;
 
+    //道具模板和容器
+    Item itemHealthPackTemplate;//血包
+    Item itemShieldPackTemplate;//盾包
+    Item itemSkillCDPackTemplate;//技能cd包
+    std::list<Item*> items;
+
+    //技能管理器
+    SkillManager skillManager;
 
 };
 

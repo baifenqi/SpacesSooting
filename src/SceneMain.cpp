@@ -2,6 +2,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include "Game.h"
+#include "object.h"
 
 #include <random>
 
@@ -90,6 +91,39 @@ void SceneMain::init()
     //调整爆炸效果大小     
     explosionTemplate.width = explosionTemplate.height;
 
+    /**********初始化游戏道具********/
+    //血包图层
+    itemHealthPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_life.png");
+    if(itemHealthPackTemplate.texture == NULL){
+        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    SDL_QueryTexture(itemHealthPackTemplate.texture, NULL, NULL, &itemHealthPackTemplate.width, &itemHealthPackTemplate.height);
+    //调整血包大小
+    itemHealthPackTemplate.width /= 4;
+    itemHealthPackTemplate.height /= 4;
+
+    //盾包图层
+    itemShieldPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_shield.png");
+    if(itemShieldPackTemplate.texture == NULL){
+        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    SDL_QueryTexture(itemShieldPackTemplate.texture, NULL, NULL, &itemShieldPackTemplate.width, &itemShieldPackTemplate.height);
+    //调整盾包大小
+    itemShieldPackTemplate.width /= 4;
+    itemShieldPackTemplate.height /= 4;
+
+    //cd包图层
+    itemSkillCDPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_time.png");
+    if(itemSkillCDPackTemplate.texture == NULL){
+        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    SDL_QueryTexture(itemSkillCDPackTemplate.texture, NULL, NULL, &itemSkillCDPackTemplate.width, &itemSkillCDPackTemplate.height);
+    //调整cd包大小
+    itemSkillCDPackTemplate.width /= 4;
+    itemSkillCDPackTemplate.height /= 4;
+    
+    /**********初始化玩家技能********/
+    initSkill();
 
 }
 
@@ -102,6 +136,8 @@ void SceneMain::update(float deltaTime)
     updateEnemies(deltaTime);
     updateEnemyBullets(deltaTime);
     updateExplosions(deltaTime);
+    updateItems(deltaTime);
+    updateSkill(deltaTime);
 }
 
 void SceneMain::render()
@@ -122,10 +158,14 @@ void SceneMain::render()
     //渲染敌人飞船
     renderEnemies();
 
+    //渲染游戏道具
+    renderItems();
+
     //渲染爆炸效果
     renderExplosions();
-    
 
+    //渲染技能
+    renderSkill();    
 }
 
 void SceneMain::handleEvent(SDL_Event *event)
@@ -185,7 +225,34 @@ void SceneMain::clean()
     if(explosionTemplate.texture != NULL){
         SDL_DestroyTexture(explosionTemplate.texture);
     }
-     
+
+    /******清理游戏道具*****/
+    //清理游戏道具容器
+    for(auto &item : items){
+        if(item != NULL){
+        delete item;
+        }
+    }
+    items.clear();
+    //清理游戏道具模板
+    if(itemHealthPackTemplate.texture != NULL){
+        SDL_DestroyTexture(itemHealthPackTemplate.texture);
+    }
+    if(itemShieldPackTemplate.texture != NULL){
+        SDL_DestroyTexture(itemShieldPackTemplate.texture);
+    }
+    if(itemSkillCDPackTemplate.texture != NULL){
+        SDL_DestroyTexture(itemSkillCDPackTemplate.texture);
+    }
+    
+
+    //清理技能
+    for(auto &skill : skillManager.skills){
+        if(skill != NULL){
+            delete skill;
+        }
+    }
+    skillManager.skills.clear();
 }
 
 /*********玩家飞船键盘控制*********************************************/
@@ -240,9 +307,15 @@ void SceneMain::keyboardControl(float deltaTime)
 
 
     /*******控制子弹发射***********************************************/
+    float fireRateMultiplier = 1.0f;
+    if(skillManager.bulletSpeedUp && skillManager.bulletSpeedUp->isUsing){
+        fireRateMultiplier = skillManager.bulletSpeedUp->bulletSpeedUp;
+    }
+    Uint32 adjustedCoolDown = static_cast<Uint32>(player.coolDown / fireRateMultiplier);
+    
     if(keyboardState[SDL_SCANCODE_SPACE]){
         auto currentTime = SDL_GetTicks();
-        if (currentTime - player.lastShotTime > player.coolDown){
+        if (currentTime - player.lastShotTime > adjustedCoolDown){
             playerbulletControl();
             player.lastShotTime = currentTime;
         }
@@ -250,11 +323,27 @@ void SceneMain::keyboardControl(float deltaTime)
     }   
     if (keyboardState[SDL_SCANCODE_J]){
         auto currentTime = SDL_GetTicks();
-        if (currentTime - player.lastShotTime > player.coolDown){
+        if (currentTime - player.lastShotTime > adjustedCoolDown){
             playerbulletControl();
             player.lastShotTime = currentTime;
         }
     }
+
+    /*******控制技能释放***********************************************/
+    if(keyboardState[SDL_SCANCODE_1]){
+        activateSkill(SkillType::ShieldReflect);
+    }
+    if(keyboardState[SDL_SCANCODE_2]){
+        activateSkill(SkillType::Invincible);
+    }
+    if(keyboardState[SDL_SCANCODE_3]){
+        activateSkill(SkillType::BulletBallisticUp);
+    }
+
+    if(keyboardState[SDL_SCANCODE_4]){
+        activateSkill(SkillType::BulletSpeedUp);
+    }
+
         
    
 }
@@ -299,7 +388,12 @@ void SceneMain::updatePlayer()
 
 /*********创建玩家子弹*********************************************/
 void SceneMain::playerbulletControl()
-{   
+{
+    //获取弹道up技能
+    int extraRows = 0;
+    if (skillManager.bulletBallisticUp && skillManager.bulletBallisticUp->isUsing){
+        extraRows = static_cast<int>(skillManager.bulletBallisticUp->bulletBallisticUp);        
+    }
     //创建玩家子弹
     PlayerBullet *playerbullet = new PlayerBullet();
     //设置玩家子弹属性
@@ -309,6 +403,24 @@ void SceneMain::playerbulletControl()
     playerbullet->position.y = player.position.y;
     //加入子弹容器
     playerBullets.push_back(playerbullet);
+
+    //如果有弹道up技能，创建额外子弹
+    if(extraRows > 0){
+        float offsetX = playerbullet->width * 0.5f;        
+        for(int i = 0; i <= extraRows; i++){
+            PlayerBullet *extraBullet = new PlayerBullet();
+            *extraBullet = playerBulletTemplate;
+            extraBullet->position.x = player.position.x + offsetX * (i + 1);
+            extraBullet->position.y = player.position.y;
+            playerBullets.push_back(extraBullet);
+
+            PlayerBullet *extraBullet2 = new PlayerBullet();
+            *extraBullet2 = playerBulletTemplate;
+            extraBullet2->position.x = player.position.x - offsetX * (i + 1);
+            extraBullet2->position.y = player.position.y;
+            playerBullets.push_back(extraBullet2);
+        }        
+    }
 }
 
 void SceneMain::updateplayerbullets(float deltaTime)
@@ -418,6 +530,7 @@ void SceneMain::renderEnemies()
     }
 }
 
+/*********创建敌人子弹*********************************************/
 void SceneMain::enemybulletControl(Enemy *enemy)
 {
     auto enemybullet = new EnemyBullet();
@@ -466,16 +579,53 @@ void SceneMain::updateEnemyBullets(float deltaTime)
                 player.height
             };
             if(SDL_HasIntersection(&enemyBulletRect,&playerRect) && isDeath == false){
-                player.hp -= enemybullet->damage;
-                delete enemybullet;
-                it = enemyBullets.erase(it);    
+                //检查无敌技能
+                if(skillManager.invincible && 
+                    skillManager.invincible->isUsing && 
+                    skillManager.invincible->invincible){
+                        delete enemybullet;
+                        it = enemyBullets.erase(it);                                      
+                }
+                //检查盾反技能
+                else if(skillManager.shieldReflect && 
+                    skillManager.shieldReflect->isUsing && 
+                    skillManager.shieldReflect->reflectBulletts){
+                        enemybullet->direction.x = -enemybullet->direction.x;
+                        enemybullet->direction.y = -enemybullet->direction.y;
+
+                        auto playerBullet = new PlayerBullet();
+                        playerBullet->texture = enemybullet->texture;
+                        playerBullet->position = enemybullet->position;
+                        playerBullet->width = enemybullet->width;
+                        playerBullet->height = enemybullet->height;
+                        playerBullet->speed = enemybullet->speed;
+                        playerBullet->damage = enemybullet->damage;
+                        playerBullets.push_back(playerBullet);
+
+                        delete enemybullet;
+                        it = enemyBullets.erase(it);
+
+                        player.hp -= static_cast<int>(enemybullet->damage * skillManager.shieldReflect->damageReflection);
+                }
+                else if(player.shield > 0){
+                    player.shield -= enemybullet->damage;
+                    delete enemybullet;
+                    it = enemyBullets.erase(it);    
+                }
+                else{
+                    player.hp -= enemybullet->damage;
+                    delete enemybullet;
+                    it = enemyBullets.erase(it);
+
+                }                                              
             }
             else {
                 ++it;
             }
+            
         } 
     }
-}
+}                                     
 
 void SceneMain::renderEnemyBullets()
 {
@@ -490,6 +640,7 @@ void SceneMain::renderEnemyBullets()
    }
 }
 
+/*********敌人爆炸*********************************************/
 void SceneMain::enemyExplode(Enemy *enemy)
 {
     auto currentTime = SDL_GetTicks();
@@ -497,7 +648,8 @@ void SceneMain::enemyExplode(Enemy *enemy)
     explosion->position.x = enemy->position.x + enemy->width/2 - explosion->width/2;
     explosion->position.y = enemy->position.y + enemy->height/2 - explosion->height/2;
     explosion->startTime = currentTime;
-    explosions.push_back(explosion);
+    explosions.push_back(explosion);   
+    dropItem(enemy);  
     delete enemy;
 }
 
@@ -535,4 +687,308 @@ void SceneMain::renderExplosions()
         SDL_RenderCopy(game.getRenderer(), explosion->texture, &src, &dst);
     }
     
+}
+/*********道具掉落*********************************************/
+void SceneMain::dropItem(Enemy *enemy)
+{
+    float dropChance = dis(gen); 
+    Item *item;
+    if(dropChance < 0.2f){
+        //20%概率血包
+        item = new HealthPack();
+        *item = itemHealthPackTemplate;
+        item->type = ItemType::HealthPack;
+    }
+    else if(dropChance < 0.35f){
+        //15%概率护盾
+        item = new ShieldPack();
+        *item = itemShieldPackTemplate;
+        item->type = ItemType::ShieldPack;
+    }
+    else if(dropChance < 0.5f){
+        //15%概率cd包
+        item = new SkillCDPack();
+        *item = itemSkillCDPackTemplate;
+        item->type = ItemType::SkillCDPack;
+    }
+    else{
+        //50%概率无道具
+        return;
+    }
+
+    item->position.x = enemy->position.x + enemy->width/2 - item->width/2;
+    item->position.y = enemy->position.y + enemy->height/2 - item->height/2;
+    double angle = dis(gen) * 2 * M_PI;
+    item->direction.x = static_cast<float>(cos(angle));
+    item->direction.y = static_cast<float>(sin(angle));
+    items.push_back(item);
+}
+
+void SceneMain::playerGetItem(Item *item)
+{
+    //血包获取
+    if(item -> type == ItemType::HealthPack){
+        player.hp += 1;        
+        if(player.hp > player.maxHp){
+            player.hp = player.maxHp;
+        }
+    }
+    //护盾获取
+    else if(item -> type == ItemType::ShieldPack){
+        player.shield += 1;
+        if(player.shield > player.maxShield){
+            player.shield = player.maxShield;
+        }
+    }
+    //cd包减少cd时间
+    else if(item -> type == ItemType::SkillCDPack){
+        skillCDPackEffect();
+    }
+
+
+}
+
+void SceneMain::updateItems(float deltaTime)
+{
+        
+    for(auto it = items.begin(); it != items.end();){
+        auto item = *it;
+
+        item->position.x += deltaTime * item->speed * item->direction.x;
+        item->position.y += deltaTime * item->speed * item->direction.y;
+
+        bool outOfScreen =  item->position.x < 0 ||
+                            item->position.x > game.getWindowWidth() - item->width ||
+                            item->position.y < 0 || 
+                            item->position.y > game.getWindowHeight() - item->height;
+        bool needBounce = false;
+
+        //碰撞边缘三次后，超出屏幕删除
+        if(item->position.x < 0 && item->bounceCount > 0){
+            item->direction.x = -item->direction.x; 
+            item->bounceCount--;
+            needBounce = true;           
+        }
+        if(item->position.x > game.getWindowWidth() - item->width && item->bounceCount > 0){
+            item->direction.x = -item->direction.x;
+            item->bounceCount--;
+            needBounce = true;
+        }
+        if(item->position.y < 0 && item->bounceCount > 0){
+            item->direction.y = -item->direction.y;
+            item->bounceCount--;
+            needBounce = true;
+        }
+        if(item->position.y > game.getWindowHeight() - item->height && item->bounceCount > 0){
+            item->direction.y = -item->direction.y;
+            item->bounceCount--;
+            needBounce = true;
+        }
+
+        if(outOfScreen && !needBounce){
+                delete item;
+                it = items.erase(it);
+        }
+        //碰撞检测,拾取道具
+        else {
+            SDL_Rect itemRect = {
+                static_cast<int>(item->position.x),
+                static_cast<int>(item->position.y),
+                item->width,
+                item->height        
+            };
+            SDL_Rect playerRect = {
+                static_cast<int>(player.position.x),
+                static_cast<int>(player.position.y),
+                player.width,
+                player.height
+            };
+            if(SDL_HasIntersection(&itemRect,&playerRect)){
+                playerGetItem(item);
+                delete item;
+                it = items.erase(it);
+            }
+            else {
+                ++it;
+            }
+                
+        }
+    };
+    
+}
+
+void SceneMain::renderItems()
+{ 
+    for(auto item : items){
+        SDL_Rect itemRect = {
+            static_cast<int>(item->position.x),
+            static_cast<int>(item->position.y),
+            item->width,
+            item->height
+        };
+        SDL_RenderCopy(game.getRenderer(), item->texture, nullptr, &itemRect);
+    }
+}
+
+void SceneMain::skillCDPackEffect()
+{
+    for(auto skill : skillManager.skills){
+        if (skill->currentCooldownTime > 0.0f){
+            skill->currentCooldownTime *= 0.7f;
+            if(skill->currentCooldownTime < 0.0f){
+                skill->currentCooldownTime = 0.0f;
+            }
+        }
+    }
+}
+
+void SceneMain::initSkill()
+{
+    //创建盾反技能
+    skillManager.shieldReflect = new ShieldReflect();
+    skillManager.shieldReflect->type = SkillType::ShieldReflect;
+    skillManager.shieldReflect->cooldDownTime = 7.0f;
+    skillManager.shieldReflect->durationTime= 4.0f;
+    skillManager.shieldReflect->currentCooldownTime = 0.0f;
+    skillManager.shieldReflect->currentDurationTime = 0.0f;
+    skillManager.shieldReflect->isUsing = false;
+    skillManager.shieldReflect->damageReflection = 0.5f;
+    skillManager.shieldReflect->reflectBulletts = false;
+    skillManager.skills.push_back(skillManager.shieldReflect);
+
+    //创建无敌技能
+    skillManager.invincible = new Invincible();
+    skillManager.invincible->type = SkillType::Invincible;
+    skillManager.invincible->cooldDownTime = 10.0f;
+    skillManager.invincible->durationTime = 3.0f;
+    skillManager.invincible->currentCooldownTime = 0.0f;
+    skillManager.invincible->currentDurationTime = 0.0f;
+    skillManager.invincible->isUsing = false;
+    skillManager.invincible->invincible = false;
+    skillManager.skills.push_back(skillManager.invincible);
+
+    //创建射速up技能
+    skillManager.bulletSpeedUp = new BulletSpeedUp();
+    skillManager.bulletSpeedUp->type = SkillType::BulletSpeedUp;
+    skillManager.bulletSpeedUp->cooldDownTime = 10.0f;
+    skillManager.bulletSpeedUp->durationTime = 20.0f;
+    skillManager.bulletSpeedUp->currentCooldownTime = 0.0f;
+    skillManager.bulletSpeedUp->currentDurationTime = 0.0f;
+    skillManager.bulletSpeedUp->isUsing = false;
+    skillManager.bulletSpeedUp->bulletSpeedUp = 2.0f;
+    skillManager.skills.push_back(skillManager.bulletSpeedUp);
+
+    //创建弹道up技能
+    skillManager.bulletBallisticUp = new BulletBallisticUp();
+    skillManager.bulletBallisticUp->type = SkillType::BulletBallisticUp;
+    skillManager.bulletBallisticUp->cooldDownTime = 10.0f;
+    skillManager.bulletBallisticUp->durationTime = 20.0f;
+    skillManager.bulletBallisticUp->currentCooldownTime = 0.0f;
+    skillManager.bulletBallisticUp->currentDurationTime = 0.0f;
+    skillManager.bulletBallisticUp->isUsing = false;
+    skillManager.bulletBallisticUp->bulletBallisticUp = 1;
+    skillManager.skills.push_back(skillManager.bulletBallisticUp);
+
+}
+
+void SceneMain::activateSkill(SkillType skillType)
+{
+    for (auto skill : skillManager.skills){
+        if(skill->type == skillType && skill->currentCooldownTime <= 0 && !skill->isUsing){
+            skill->isUsing = true;
+            skill->currentCooldownTime = skill->cooldDownTime;
+            skill->currentDurationTime = skill->durationTime;  
+            
+            //根据技能类型激活技能
+            switch (skillType)
+            {
+            case SkillType::ShieldReflect:
+                skillManager.shieldReflect->reflectBulletts = true;
+                break;
+            case SkillType::Invincible:
+                skillManager.invincible->invincible = true;
+                break;
+            case SkillType::BulletSpeedUp:
+                skillManager.bulletSpeedUp->bulletSpeedUp = 2.0f;
+                break;
+            case SkillType::BulletBallisticUp:
+                skillManager.bulletBallisticUp->bulletBallisticUp++;
+                break;
+            }            
+        }
+    }
+}
+
+void SceneMain::updateSkill(float deltaTime)
+{
+    for (auto skill : skillManager.skills){
+        if(skill->currentCooldownTime >0){
+            skill->currentCooldownTime -= deltaTime;
+            if(skill->currentCooldownTime < 0){
+                skill->currentCooldownTime = 0;                
+            }
+        }
+
+        //更新效果持续时间
+        if(skill->isUsing){
+            skill->currentCooldownTime -= deltaTime;
+            
+            if(skill->currentDurationTime <= 0){
+                skill->isUsing = false;
+                skill->currentDurationTime = 0;
+                //根据技能类型取消技能效果
+                switch (skill->type)
+                {
+                case SkillType::ShieldReflect:
+                    skillManager.shieldReflect->reflectBulletts = false;
+                    break;
+                case SkillType::Invincible:
+                    skillManager.invincible->invincible = false;
+                    break;
+                case SkillType::BulletSpeedUp:
+                    skillManager.bulletSpeedUp->bulletSpeedUp = 1.0f;
+                    break;
+                case SkillType::BulletBallisticUp:
+                    skillManager.bulletBallisticUp->bulletBallisticUp = 0;
+                    break;
+                }
+            }
+        }
+        
+    }
+}
+
+void SceneMain::renderSkill()
+{
+    //渲染盾反技能效果
+    if(skillManager.shieldReflect->reflectBulletts && 
+        skillManager.shieldReflect->isUsing && 
+        skillManager.shieldReflect->reflectBulletts){
+            //在玩家周围绘制光晕效果
+            SDL_Rect shieldRect = {
+                static_cast<int>(player.position.x - 10),
+                static_cast<int>(player.position.y - 10),
+                player.width + 20,
+                player.height + 20
+            };
+            SDL_SetRenderDrawColor(game.getRenderer(), 0, 191, 255, 128);
+            SDL_RenderFillRect(game.getRenderer(), &shieldRect);
+        
+    }
+
+    //渲染无敌技能效果
+    if(skillManager.invincible->invincible && 
+        skillManager.invincible->isUsing && 
+        skillManager.invincible->invincible){
+            //在玩家周围绘制发光效果
+            SDL_Rect glowRect = {
+                static_cast<int>(player.position.x - 5),
+                static_cast<int>(player.position.y - 5),
+                player.width + 10,
+                player.height + 10
+            };
+            SDL_SetRenderDrawColor(game.getRenderer(), 255, 255, 0, 128);
+            SDL_RenderFillRect(game.getRenderer(), &glowRect);
+        
+    }
 }
