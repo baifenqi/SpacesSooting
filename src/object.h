@@ -1,160 +1,169 @@
 #ifndef OBJECT_H
 #define OBJECT_H
+
 #include <SDL.h>
 #include <list>
+#include <memory>
 
-//玩家飞船类
-struct Player
-{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    int width = 0;
-    int height = 0;
-    int speed = 300;
-    int hp = 3;
-    int maxHp = 10;
-    int shield = 0;
-    int maxShield = 100;
+// 玩家飞船类
+struct Player {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 300;
+    int hp_ = 3;
+    int maxHp_ = 10;
+    int shield_ = 0;
+    int maxShield_ = 100;
     
-
-    Uint32 coolDown = 500;
-    Uint32 lastShotTime = 0;
+    Uint32 coolDown_ = 500;
+    Uint32 lastShotTime_ = 0;
 };
 
-//玩家子弹类
-struct PlayerBullet
-{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    int width = 0;
-    int height = 0;
-    int speed = 500;
-    int damage = 1;
+// 玩家子弹类
+struct PlayerBullet {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 500;
+    int damage_ = 1;
 };
 
-//敌人飞船类
-struct Enemy{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    int width = 0;
-    int height = 0;
-    int speed = 150;
-    int hp = 2;
-
-    Uint32 coolDown = 3000;
-    Uint32 lastShotTime = 0;
+// 敌人飞船类
+struct Enemy {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 150;
+    int hp_ = 2;
+    
+    Uint32 coolDown_ = 3000;
+    Uint32 lastShotTime_ = 0;
 };
 
-//敌人子弹类
-struct EnemyBullet{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    SDL_FPoint  direction = {0, 0};
-    int width = 0;
-    int height = 0;
-    int speed = 300;
-    int damage = 1;
+// 敌人子弹类
+struct EnemyBullet {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    SDL_FPoint direction_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 300;
+    int damage_ = 1;
 };
 
-
-//爆炸纹理类
-struct Explosion{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    int width = 0;
-    int height = 0;
-    int currentFrame = 0;
-    int totalFrame = 0;
-
-    Uint32 startTime = 0;
-    Uint32 FPS = 10;
+// 爆炸纹理类
+struct Explosion {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int currentFrame_ = 0;
+    int totalFrame_ = 0;
+    
+    Uint32 startTime_ = 0;
+    Uint32 fps_ = 10;
 };
 
-//道具类
-enum class ItemType{
+// 道具类型枚举
+enum class ItemType {
     HealthPack,
     ShieldPack,
-    SkillCDPack    
+    SkillCDPack
 };
 
-struct Item{
-    SDL_Texture *texture = nullptr;
-    SDL_FPoint  position = {0, 0};
-    SDL_FPoint  direction = {0, 0};
-    int width = 0;
-    int height = 0;
-    int speed = 200;
-    int bounceCount = 3;
-    ItemType type = ItemType::HealthPack;    
+// 道具基类
+struct Item {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    SDL_FPoint direction_ = {0, 0};
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 200;
+    int bounceCount_ = 3;
+    ItemType type_ = ItemType::HealthPack;
 };
-    //血包类
-    struct HealthPack : public Item{
-        HealthPack() {
-            type = ItemType::HealthPack;
-        }
-    };
 
-    //盾包类
-    struct ShieldPack : public Item{
-        ShieldPack() {
-            type = ItemType::ShieldPack;
-        }
-    };
+// 血包类
+struct HealthPack : public Item {
+    HealthPack() {
+        type_ = ItemType::HealthPack;
+    }
+};
 
-    //技能包类
-    struct SkillCDPack : public Item{
-        SkillCDPack() {
-            type = ItemType::SkillCDPack;
-        }
-    };
+// 盾包类
+struct ShieldPack : public Item {
+    ShieldPack() {
+        type_ = ItemType::ShieldPack;
+    }
+};
 
+// 技能包类
+struct SkillCDPack : public Item {
+    SkillCDPack() {
+        type_ = ItemType::SkillCDPack;
+    }
+};
 
-//技能类
-enum class SkillType{
+// 技能类型枚举
+enum class SkillType {
     ShieldReflect,
     Invincible,
     BulletSpeedUp,
     BulletBallisticUp
-
 };
 
-struct Skill{
-   SkillType type;
-   float cooldDownTime;
-   float durationTime;
-   float currentCooldownTime;
-   float currentDurationTime;
-   bool isUsing;  
-};
-   //盾反技能
-   struct ShieldReflect : public Skill{
-       float damageReflection;
-       bool reflectBulletts;
-   };
-
-   //无敌技能
-   struct Invincible : public Skill{
-       bool invincible;
-   };
-
-   //子弹速度提升技能
-   struct BulletSpeedUp : public Skill{
-       float bulletSpeedUp;
-   };
-
-   //子弹弹道提升技能
-   struct BulletBallisticUp : public Skill{
-       float bulletBallisticUp;
-   };
-
-//技能管理
-struct SkillManager{
-    std::list<Skill*> skills;
-    ShieldReflect* shieldReflect;
-    Invincible* invincible;
-    BulletSpeedUp* bulletSpeedUp;
-    BulletBallisticUp* bulletBallisticUp;
+// 技能基类
+struct Skill {
+    SkillType type_;
+    float coolDownTime_;
+    float durationTime_;
+    float currentCooldownTime_;
+    float currentDurationTime_;
+    bool isUsing_;
 };
 
+// 盾反技能
+struct ShieldReflect : public Skill {
+    float damageReflection_;
+    bool reflectBullets_;
+};
+
+// 无敌技能
+struct Invincible : public Skill {
+    bool invincible_;
+};
+
+// 子弹速度提升技能
+struct BulletSpeedUp : public Skill {
+    float bulletSpeedUp_;
+};
+
+// 子弹弹道提升技能
+struct BulletBallisticUp : public Skill {
+    float bulletBallisticUp_;
+};
+
+// 技能管理器
+struct SkillManager {
+    std::list<Skill*> skills_;
+    ShieldReflect* shieldReflect_;
+    Invincible* invincible_;
+    BulletSpeedUp* bulletSpeedUp_;
+    BulletBallisticUp* bulletBallisticUp_;
+};
+
+// 背景图类
+struct Background {
+    SDL_Texture* texture_ = nullptr;
+    SDL_FPoint position_ = {0, 0};
+    float offset_ = 0.0f;
+    int width_ = 0;
+    int height_ = 0;
+    int speed_ = 30;
+};
 
 #endif

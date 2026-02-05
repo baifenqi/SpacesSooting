@@ -6,8 +6,20 @@
 
 #include <random>
 
-SceneMain::SceneMain():game(Game::getInstance())
+SceneMain::SceneMain(): game_(Game::getInstance())
 {
+    // 初始化成员变量
+    isDeath_ = false;
+    skillPulseTime_ = 0.0f;
+    invincibleEffectTime_ = 0.0f;
+    shieldEffectFrameTime_ = 0.0f;
+    shieldEffectCurrentFrame_ = 0;
+    shieldEffectTexture_ = nullptr;
+    
+    // 初始化帧率监控器
+    frameCount_ = 0;
+    lastFpsUpdateTime_ = 0;
+    currentFPS_ = 0.0f;
 }
 
 SceneMain::~SceneMain()
@@ -16,121 +28,266 @@ SceneMain::~SceneMain()
 
 /******************主控制台*************/
 void SceneMain::init()
-{    
+{
+    // 读取并播放背景音乐
+    bgm_ = Mix_LoadMUS("assets/music/03_Racing_Through_Asteroids_Loop.ogg");
+    if(bgm_ == nullptr){
+        printf("Failed to load music! SDL_mixer Error: %s\n", Mix_GetError());
+    }
+    Mix_PlayMusic(bgm_, -1);
+
+    // 读取音效资源
+    soundEffectMap_["player_shoot"] = Mix_LoadWAV("assets/sound/laser_shoot4.wav");
+    soundEffectMap_["enemy_shoot"] = Mix_LoadWAV("assets/sound/xs_laser.wav");
+    soundEffectMap_["player_explode"] = Mix_LoadWAV("assets/sound/explosion1.wav");
+    soundEffectMap_["enemy_explode"] = Mix_LoadWAV("assets/sound/explosion3.wav");
+    soundEffectMap_["hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
+    soundEffectMap_["get_item"] = Mix_LoadWAV("assets/sound/eff5.wav");
+
+    // 创建随机数生成器
+    std::random_device rd;
+    gen_ = std::mt19937(rd());
+    dis_ = std::uniform_real_distribution<float>(0.0f, 1.0f);
+
     /****************初始化玩家************/
-    //飞船图层
-    player.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/SpaceShip.png");
-    if(player.texture == NULL){ 
+    // 飞船纹理
+    player_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/SpaceShip.png");
+    if(player_.texture_ == nullptr){ 
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(player.texture, NULL, NULL, &player.width, &player.height);
+    SDL_QueryTexture(player_.texture_, nullptr, nullptr, &player_.width_, &player_.height_);
 
-    //调整玩家飞船大小
-    player.width /= 4;
-    player.height /= 4;
+    // 调整玩家飞船大小
+    player_.width_ /= 4;
+    player_.height_ /= 4;
 
-    //调整玩家飞船位置
-    player.position.x =static_cast<float>(game.getWindowWidth())/2- static_cast<float>(player.width)/2;
-    player.position.y =static_cast<float>(game.getWindowHeight()) - static_cast<float>(player.height);
+    // 调整玩家飞船位置
+    player_.position_.x = static_cast<float>(game_.getWindowWidth()) / 2 - static_cast<float>(player_.width_) / 2;
+    player_.position_.y = static_cast<float>(game_.getWindowHeight()) - static_cast<float>(player_.height_);
 
 
     /**************初始化玩家子弹模板*********/
-    //子弹图层
-    playerBulletTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/laser-1.png");
-    if(playerBulletTemplate.texture == NULL){ 
+    // 子弹纹理
+    playerBulletTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/laser-1.png");
+    if(playerBulletTemplate_.texture_ == nullptr){ 
         printf("Failed to load bullet texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(playerBulletTemplate.texture, NULL, NULL, &playerBulletTemplate.width, &playerBulletTemplate.height);
+    SDL_QueryTexture(playerBulletTemplate_.texture_, nullptr, nullptr, &playerBulletTemplate_.width_, &playerBulletTemplate_.height_);
 
-    //调整子弹大小
-    playerBulletTemplate.width /= 4;
-    playerBulletTemplate.height /= 4;
+    // 调整子弹大小
+    playerBulletTemplate_.width_ /= 4;
+    playerBulletTemplate_.height_ /= 4;
 
-    //显示设置子弹初始位置
-    playerBulletTemplate.speed = 600;
+    // 设置子弹初始速度
+    playerBulletTemplate_.speed_ = 600;
 
     /****************初始化敌人飞船********/    
-    //敌人飞船图层
-    enemyTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/insect-1.png");
-    if(enemyTemplate.texture == NULL){
+    // 敌人飞船纹理
+    enemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-1.png");
+    if(enemyTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(enemyTemplate.texture, NULL, NULL, &enemyTemplate.width, &enemyTemplate.height);
+    SDL_QueryTexture(enemyTemplate_.texture_, nullptr, nullptr, &enemyTemplate_.width_, &enemyTemplate_.height_);
 
-    //调整敌人飞船大小
-    enemyTemplate.width /= 4;
-    enemyTemplate.height /= 4; 
+    // 调整敌人飞船大小
+    enemyTemplate_.width_ /= 4;
+    enemyTemplate_.height_ /= 4; 
     
-    //调整敌人飞船位置
-        //创建随机数——敌人飞船出现位置
-        std::random_device rd;
-        gen = std::mt19937(rd());
-        dis = std::uniform_real_distribution<float>(0.0f, 1.0f);
-
     /****************初始化敌人飞船子弹********/
-    //子弹图层
-    enemyBulletTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bullet-1.png");
-    if(enemyBulletTemplate.texture == NULL){
+    // 子弹纹理
+    enemyBulletTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bullet-1.png");
+    if(enemyBulletTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(enemyBulletTemplate.texture, NULL, NULL, &enemyBulletTemplate.width, &enemyBulletTemplate.height);
+    SDL_QueryTexture(enemyBulletTemplate_.texture_, nullptr, nullptr, &enemyBulletTemplate_.width_, &enemyBulletTemplate_.height_);
 
-    //调整敌人飞船子弹大小
-    enemyBulletTemplate.width /= 4;
-    enemyBulletTemplate.height /= 4;
+    // 调整敌人飞船子弹大小
+    enemyBulletTemplate_.width_ /= 4;
+    enemyBulletTemplate_.height_ /= 4;
 
     /****************初始化爆炸效果********/
-    //爆炸图层
-    explosionTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/effect/explosion.png");
-    if(explosionTemplate.texture == NULL){
+    // 爆炸纹理
+    explosionTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/effect/explosion.png");
+    if(explosionTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(explosionTemplate.texture, NULL, NULL, &explosionTemplate.width, &explosionTemplate.height);
-    //计算爆炸帧数
-    explosionTemplate.totalFrame =explosionTemplate.width / explosionTemplate.height;
-    //调整爆炸效果大小     
-    explosionTemplate.width = explosionTemplate.height;
+    SDL_QueryTexture(explosionTemplate_.texture_, nullptr, nullptr, &explosionTemplate_.width_, &explosionTemplate_.height_);
+    
+    // 计算爆炸帧数
+    explosionTemplate_.totalFrame_ = explosionTemplate_.width_ / explosionTemplate_.height_;
+    // 调整爆炸效果大小     
+    explosionTemplate_.width_ = explosionTemplate_.height_;
 
     /**********初始化游戏道具********/
-    //血包图层
-    itemHealthPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_life.png");
-    if(itemHealthPackTemplate.texture == NULL){
+    // 血包纹理
+    itemHealthPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_life.png");
+    if(itemHealthPackTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(itemHealthPackTemplate.texture, NULL, NULL, &itemHealthPackTemplate.width, &itemHealthPackTemplate.height);
-    //调整血包大小
-    itemHealthPackTemplate.width /= 4;
-    itemHealthPackTemplate.height /= 4;
+    SDL_QueryTexture(itemHealthPackTemplate_.texture_, nullptr, nullptr, &itemHealthPackTemplate_.width_, &itemHealthPackTemplate_.height_);
+    
+    // 调整血包大小
+    itemHealthPackTemplate_.width_ /= 4;
+    itemHealthPackTemplate_.height_ /= 4;
 
-    //盾包图层
-    itemShieldPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_shield.png");
-    if(itemShieldPackTemplate.texture == NULL){
+    // 盾包纹理
+    itemShieldPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_shield.png");
+    if(itemShieldPackTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(itemShieldPackTemplate.texture, NULL, NULL, &itemShieldPackTemplate.width, &itemShieldPackTemplate.height);
-    //调整盾包大小
-    itemShieldPackTemplate.width /= 4;
-    itemShieldPackTemplate.height /= 4;
+    SDL_QueryTexture(itemShieldPackTemplate_.texture_, nullptr, nullptr, &itemShieldPackTemplate_.width_, &itemShieldPackTemplate_.height_);
+    
+    // 调整盾包大小
+    itemShieldPackTemplate_.width_ /= 4;
+    itemShieldPackTemplate_.height_ /= 4;
 
-    //cd包图层
-    itemSkillCDPackTemplate.texture = IMG_LoadTexture(Game::getInstance().getRenderer(),"assets/image/bonus_time.png");
-    if(itemSkillCDPackTemplate.texture == NULL){
+    // CD包纹理
+    itemSkillCDPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_time.png");
+    if(itemSkillCDPackTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(itemSkillCDPackTemplate.texture, NULL, NULL, &itemSkillCDPackTemplate.width, &itemSkillCDPackTemplate.height);
-    //调整cd包大小
-    itemSkillCDPackTemplate.width /= 4;
-    itemSkillCDPackTemplate.height /= 4;
+    SDL_QueryTexture(itemSkillCDPackTemplate_.texture_, nullptr, nullptr, &itemSkillCDPackTemplate_.width_, &itemSkillCDPackTemplate_.height_);
+    
+    // 调整CD包大小
+    itemSkillCDPackTemplate_.width_ /= 4;
+    itemSkillCDPackTemplate_.height_ /= 4;
     
     /**********初始化玩家技能********/
     initSkill();
 
+    // 加载盾反技能特效纹理
+    shieldEffectTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/effect/OrangeAura1.png");
+    if(shieldEffectTexture_ == nullptr){
+        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    
+    // 初始化帧率监控器
+    lastFpsUpdateTime_ = SDL_GetTicks();
 }
+
+void SceneMain::clean()
+{
+    /******清理玩家飞船*****/
+    if(player_.texture_ != nullptr){
+        SDL_DestroyTexture(player_.texture_);  
+        player_.texture_ = nullptr;
+    }
+    
+    /*****清理玩家子弹*****/
+    // 清理子弹容器
+    for(auto& playerBullet : playerBullets_){
+        delete playerBullet; 
+    }
+    playerBullets_.clear();
+    
+    // 清理子弹模板
+    if(playerBulletTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(playerBulletTemplate_.texture_);
+        playerBulletTemplate_.texture_ = nullptr;
+    }
+
+    /******清理敌人飞船*****/
+    // 清理敌人飞船容器
+    for(auto& enemy : enemies_){
+        delete enemy; 
+    }
+    enemies_.clear();
+
+    // 清理敌人飞船模板
+    if(enemyTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(enemyTemplate_.texture_);
+        enemyTemplate_.texture_ = nullptr;
+    }
+    
+    /******清理敌人飞船子弹*****/
+    // 清理敌人飞船子弹容器
+    for(auto& enemyBullet : enemyBullets_){
+        delete enemyBullet; 
+    }
+    enemyBullets_.clear();
+    
+    // 清理敌人飞船子弹模板
+    if(enemyBulletTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(enemyBulletTemplate_.texture_);
+        enemyBulletTemplate_.texture_ = nullptr;
+    }
+
+    /******清理爆炸效果*****/
+    // 清理爆炸效果容器
+    for(auto& explosion : explosions_){
+        delete explosion; 
+    }
+    explosions_.clear();
+
+    // 清理爆炸效果模板
+    if(explosionTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(explosionTemplate_.texture_);
+        explosionTemplate_.texture_ = nullptr;
+    }
+
+    /******清理游戏道具*****/
+    // 清理游戏道具容器
+    for(auto& item : items_){
+        if(item != nullptr){
+            delete item;
+        }
+    }
+    items_.clear();
+    
+    // 清理游戏道具模板
+    if(itemHealthPackTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(itemHealthPackTemplate_.texture_);
+        itemHealthPackTemplate_.texture_ = nullptr;
+    }
+    
+    if(itemShieldPackTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(itemShieldPackTemplate_.texture_);
+        itemShieldPackTemplate_.texture_ = nullptr;
+    }
+    
+    if(itemSkillCDPackTemplate_.texture_ != nullptr){
+        SDL_DestroyTexture(itemSkillCDPackTemplate_.texture_);
+        itemSkillCDPackTemplate_.texture_ = nullptr;
+    }
+    
+
+    // 清理技能
+    for(auto& skill : skillManager_.skills_){
+        if(skill != nullptr){
+            delete skill;
+        }
+    }
+    skillManager_.skills_.clear();
+
+    // 清理技能模板
+    if(shieldEffectTexture_ != nullptr){
+        SDL_DestroyTexture(shieldEffectTexture_);
+        shieldEffectTexture_ = nullptr;
+    }
+
+    // 清理音乐资源
+    // 清理背景音乐
+    if(bgm_ != nullptr){
+        Mix_HaltMusic();
+        Mix_FreeMusic(bgm_);        
+        bgm_ = nullptr;
+    }
+
+    // 清理音效
+    for (auto& soundEffect : soundEffectMap_) {
+        if(soundEffect.second != nullptr){
+            Mix_FreeChunk(soundEffect.second); 
+            soundEffect.second = nullptr;
+        }            
+    }
+    soundEffectMap_.clear();
+}
+
 
 void SceneMain::update(float deltaTime)
 {
-    keyboardControl(deltaTime);
-    updateplayerbullets(deltaTime);
+    keyboardControl(deltaTime);    
+    updatePlayerBullets(deltaTime);
     updatePlayer();
     spawnEnemy();
     updateEnemies(deltaTime);
@@ -138,194 +295,131 @@ void SceneMain::update(float deltaTime)
     updateExplosions(deltaTime);
     updateItems(deltaTime);
     updateSkill(deltaTime);
+
+    // 更新帧率
+    frameCount_++;
+    Uint32 currentTime = SDL_GetTicks();
+    if (currentTime - lastFpsUpdateTime_ >= 1000) {
+        currentFPS_ = frameCount_ * 1000.0f / (currentTime - lastFpsUpdateTime_);
+        frameCount_ = 0;
+        lastFpsUpdateTime_ = currentTime;
+
+        // 输出帧率到控制台
+        printf("FPS: %.2f\n", currentFPS_);
+    }
 }
 
 void SceneMain::render()
 {
-    //渲染玩家子弹
+    // 渲染玩家子弹
     renderPlayerBullets();
-    //渲染玩家飞船
-    if(!isDeath){
-        SDL_Rect PlayerRect = { static_cast<int>(player.position.x),
-                            static_cast<int>(player.position.y),
-                            player.width,
-                            player.height};                            
-    SDL_RenderCopy(game.getRenderer(), player.texture, NULL,&PlayerRect);    
+    
+    // 渲染玩家飞船
+    if(!isDeath_){
+        SDL_Rect playerRect = { 
+            static_cast<int>(player_.position_.x),
+            static_cast<int>(player_.position_.y),
+            player_.width_,
+            player_.height_
+        };                            
+        SDL_RenderCopy(game_.getRenderer(), player_.texture_, nullptr, &playerRect);    
     }
     
-    //渲染敌人飞船子弹
+    // 渲染敌人飞船子弹
     renderEnemyBullets();
-    //渲染敌人飞船
+    
+    // 渲染敌人飞船
     renderEnemies();
 
-    //渲染游戏道具
+    // 渲染游戏道具
     renderItems();
 
-    //渲染爆炸效果
+    // 渲染爆炸效果
     renderExplosions();
 
-    //渲染技能
+    // 渲染技能
     renderSkill();    
 }
 
-void SceneMain::handleEvent(SDL_Event *event)
+void SceneMain::handleEvent(SDL_Event* event)
 {
-    (void)event;//声明未使用    
+    (void)event; // 声明未使用    
 }
 
-
-void SceneMain::clean()
-{
-    /******清理玩家飞船*****/
-    if(player.texture != NULL){
-        SDL_DestroyTexture(player.texture);  
-    }
-    /*****清理玩家子弹*****/
-    //清理子弹容器
-    for(auto &playerbullet : playerBullets){
-        delete playerbullet; // 只需要 delete 对象
-    }
-    playerBullets.clear();
-    
-    //清理子弹模板
-    if(playerBulletTemplate.texture != NULL){
-        SDL_DestroyTexture(playerBulletTemplate.texture);
-    }
-
-    /******清理敌人飞船*****/
-    //清理敌人飞船容器
-    for(auto &enemy : enemies){
-        delete enemy; // 只需要 delete 对象 
-    }
-    enemies.clear();
-
-    //清理敌人飞船模板
-    if(enemyTemplate.texture != NULL){
-        SDL_DestroyTexture(enemyTemplate.texture);
-    }
-    /******清理敌人飞船子弹*****/
-    //清理敌人飞船子弹容器
-    for(auto &enemyBullet : enemyBullets){
-        delete enemyBullet; // 只需要 delete 对象
-    }
-    enemyBullets.clear();
-    //清理敌人飞船子弹模板
-    if(enemyBulletTemplate.texture != NULL){
-        SDL_DestroyTexture(enemyBulletTemplate.texture);
-    }
-
-    /******清理爆炸效果*****/
-    //清理爆炸效果容器
-    for(auto &explosion : explosions){
-        delete explosion; 
-    }
-    explosions.clear();
-
-    //清理爆炸效果模板
-    if(explosionTemplate.texture != NULL){
-        SDL_DestroyTexture(explosionTemplate.texture);
-    }
-
-    /******清理游戏道具*****/
-    //清理游戏道具容器
-    for(auto &item : items){
-        if(item != NULL){
-        delete item;
-        }
-    }
-    items.clear();
-    //清理游戏道具模板
-    if(itemHealthPackTemplate.texture != NULL){
-        SDL_DestroyTexture(itemHealthPackTemplate.texture);
-    }
-    if(itemShieldPackTemplate.texture != NULL){
-        SDL_DestroyTexture(itemShieldPackTemplate.texture);
-    }
-    if(itemSkillCDPackTemplate.texture != NULL){
-        SDL_DestroyTexture(itemSkillCDPackTemplate.texture);
-    }
-    
-
-    //清理技能
-    for(auto &skill : skillManager.skills){
-        if(skill != NULL){
-            delete skill;
-        }
-    }
-    skillManager.skills.clear();
-}
 
 /*********玩家飞船键盘控制*********************************************/
 void SceneMain::keyboardControl(float deltaTime)
 {
-    if(isDeath){
-        return;//如果玩家死亡，则不执行以下代码
+    if(isDeath_){
+        return; // 如果玩家死亡，则不执行以下代码
     }
 
-    auto keyboardState = SDL_GetKeyboardState(NULL);  
-/******wsad控制玩家飞船上下左右移动*************************************/
-
-    //控制玩家飞船向上移动
-    if (keyboardState[SDL_SCANCODE_W]){
-        player.position.y -= deltaTime *player.speed;
-    }
-    //控制玩家飞船向下移动
-    if (keyboardState[SDL_SCANCODE_S]){
-        player.position.y += deltaTime *player.speed;
-    }
-    //控制玩家飞船向左移动
-    if (keyboardState[SDL_SCANCODE_A]){
-        player.position.x -= deltaTime *player.speed;
-    }
-    //控制玩家飞船向右移动
-    if (keyboardState[SDL_SCANCODE_D]){
-        player.position.x += deltaTime *player.speed;
-    }
-/*******限制玩家飞船移动范围*******************************************/
+    auto keyboardState = SDL_GetKeyboardState(nullptr);  
     
+    /******wsad控制玩家飞船上下左右移动*************************************/
 
-     //限制玩家飞船向上移动范围
-    if (player.position.y < 0){
-        player.position.y = 0;
+    // 控制玩家飞船向上移动
+    if (keyboardState[SDL_SCANCODE_W]){
+        player_.position_.y -= deltaTime * player_.speed_;
+    }
+    
+    // 控制玩家飞船向下移动
+    if (keyboardState[SDL_SCANCODE_S]){
+        player_.position_.y += deltaTime * player_.speed_;
+    }
+    
+    // 控制玩家飞船向左移动
+    if (keyboardState[SDL_SCANCODE_A]){
+        player_.position_.x -= deltaTime * player_.speed_;
+    }
+    
+    // 控制玩家飞船向右移动
+    if (keyboardState[SDL_SCANCODE_D]){
+        player_.position_.x += deltaTime * player_.speed_;
+    }
+    
+    /*******限制玩家飞船移动范围*******************************************/
+
+    // 限制玩家飞船向上移动范围
+    if (player_.position_.y < 0){
+        player_.position_.y = 0;
     }
 
-    //限制玩家飞船向下移动范围
-    if (player.position.y > game.getWindowHeight() - player.height){
-        player.position.y = static_cast<float>(game.getWindowHeight()) - static_cast<float>(player.height);
+    // 限制玩家飞船向下移动范围
+    if (player_.position_.y > game_.getWindowHeight() - player_.height_){
+        player_.position_.y = static_cast<float>(game_.getWindowHeight()) - static_cast<float>(player_.height_);
     }
 
-    //限制玩家飞船向左移动范围
-    if (player.position.x < 0){
-        player.position.x = 0;
+    // 限制玩家飞船向左移动范围
+    if (player_.position_.x < 0){
+        player_.position_.x = 0;
     }
 
-    //限制玩家飞船向右移动范围
-    if (player.position.x > game.getWindowWidth() - player.width){
-        player.position.x = static_cast<float>(game.getWindowWidth()) - static_cast<float>(player.width);
+    // 限制玩家飞船向右移动范围
+    if (player_.position_.x > game_.getWindowWidth() - player_.width_){
+        player_.position_.x = static_cast<float>(game_.getWindowWidth()) - static_cast<float>(player_.width_);
     }
-
-
 
     /*******控制子弹发射***********************************************/
     float fireRateMultiplier = 1.0f;
-    if(skillManager.bulletSpeedUp && skillManager.bulletSpeedUp->isUsing){
-        fireRateMultiplier = skillManager.bulletSpeedUp->bulletSpeedUp;
+    if(skillManager_.bulletSpeedUp_ && skillManager_.bulletSpeedUp_->isUsing_){
+        fireRateMultiplier = skillManager_.bulletSpeedUp_->bulletSpeedUp_;
     }
-    Uint32 adjustedCoolDown = static_cast<Uint32>(player.coolDown / fireRateMultiplier);
+    Uint32 adjustedCoolDown = static_cast<Uint32>(player_.coolDown_ / fireRateMultiplier);
     
     if(keyboardState[SDL_SCANCODE_SPACE]){
         auto currentTime = SDL_GetTicks();
-        if (currentTime - player.lastShotTime > adjustedCoolDown){
-            playerbulletControl();
-            player.lastShotTime = currentTime;
+        if (currentTime - player_.lastShotTime_ > adjustedCoolDown){
+            createPlayerBullets();
+            player_.lastShotTime_ = currentTime;
         }
-
     }   
+    
     if (keyboardState[SDL_SCANCODE_J]){
         auto currentTime = SDL_GetTicks();
-        if (currentTime - player.lastShotTime > adjustedCoolDown){
-            playerbulletControl();
-            player.lastShotTime = currentTime;
+        if (currentTime - player_.lastShotTime_ > adjustedCoolDown){
+            createPlayerBullets();
+            player_.lastShotTime_ = currentTime;
         }
     }
 
@@ -333,9 +427,11 @@ void SceneMain::keyboardControl(float deltaTime)
     if(keyboardState[SDL_SCANCODE_1]){
         activateSkill(SkillType::ShieldReflect);
     }
+    
     if(keyboardState[SDL_SCANCODE_2]){
         activateSkill(SkillType::Invincible);
     }
+    
     if(keyboardState[SDL_SCANCODE_3]){
         activateSkill(SkillType::BulletBallisticUp);
     }
@@ -343,327 +439,353 @@ void SceneMain::keyboardControl(float deltaTime)
     if(keyboardState[SDL_SCANCODE_4]){
         activateSkill(SkillType::BulletSpeedUp);
     }
-
-        
-   
 }
+
 /*********玩家飞船状态更新*********************************************/
 void SceneMain::updatePlayer()
 {
-    
-    if(isDeath){
-        return;//如果玩家死亡，则不执行以下代码
+    if(isDeath_){
+        return; // 如果玩家死亡，则不执行以下代码
     }
-    if(player.hp <= 0){
-
-        isDeath = true;
+    
+    if(player_.hp_ <= 0){
+        isDeath_ = true;
         auto currentTime = SDL_GetTicks();
         auto explosion = new Explosion();
-        explosion->position.x = player.position.x + player.width/2 - explosion->width/2;
-        explosion->position.y = player.position.y + player.height/2 - explosion->height/2;
-        explosion->startTime = currentTime;
-        explosions.push_back(explosion);
+        explosion->position_.x = player_.position_.x + player_.width_ / 2 - explosion->width_ / 2;
+        explosion->position_.y = player_.position_.y + player_.height_ / 2 - explosion->height_ / 2;
+        explosion->startTime_ = currentTime;
+        explosions_.push_back(explosion);
+        Mix_PlayChannel(-1, soundEffectMap_["player_explode"], 0);
         return;
     }
-    for(auto enemy : enemies){
-        SDL_Rect enmyRect = {
-            static_cast<int>(enemy->position.x),
-            static_cast<int>(enemy->position.y),
-            enemy->width,
-            enemy->height
+    
+    for(auto enemy : enemies_){
+        SDL_Rect enemyRect = {
+            static_cast<int>(enemy->position_.x),
+            static_cast<int>(enemy->position_.y),
+            enemy->width_,
+            enemy->height_
         };
+        
         SDL_Rect playerRect = {
-            static_cast<int>(player.position.x),
-            static_cast<int>(player.position.y),
-            player.width,
-            player.height
+            static_cast<int>(player_.position_.x),
+            static_cast<int>(player_.position_.y),
+            player_.width_,
+            player_.height_
         };
-        if(SDL_HasIntersection(&enmyRect,&playerRect)){
-            player.hp -= 1;
-            enemy->hp = 0;
+        
+        if(SDL_HasIntersection(&enemyRect, &playerRect)){
+            player_.hp_ -= 1;
+            enemy->hp_ = 0;
             break;
         }
     }
 }
 
 /*********创建玩家子弹*********************************************/
-void SceneMain::playerbulletControl()
+void SceneMain::createPlayerBullets()
 {
-    //获取弹道up技能
+    // 获取弹道up技能
     int extraRows = 0;
-    if (skillManager.bulletBallisticUp && skillManager.bulletBallisticUp->isUsing){
-        extraRows = static_cast<int>(skillManager.bulletBallisticUp->bulletBallisticUp);        
+    if (skillManager_.bulletBallisticUp_ && skillManager_.bulletBallisticUp_->isUsing_){
+        extraRows = static_cast<int>(skillManager_.bulletBallisticUp_->bulletBallisticUp_);        
     }
-    //创建玩家子弹
-    PlayerBullet *playerbullet = new PlayerBullet();
-    //设置玩家子弹属性
-    *playerbullet = playerBulletTemplate;
-    //调整玩家子弹位置
-    playerbullet->position.x = player.position.x + player.width/2 - playerbullet->width/2;
-    playerbullet->position.y = player.position.y;
-    //加入子弹容器
-    playerBullets.push_back(playerbullet);
+    
+    // 创建玩家子弹
+    PlayerBullet* playerBullet = new PlayerBullet();
+    // 设置玩家子弹属性
+    *playerBullet = playerBulletTemplate_;
+    // 调整玩家子弹位置
+    playerBullet->position_.x = player_.position_.x + player_.width_ / 2 - playerBullet->width_ / 2;
+    playerBullet->position_.y = player_.position_.y;
+    // 加入子弹容器
+    playerBullets_.push_back(playerBullet);
+    // 加入射击音效
+    Mix_PlayChannel(0, soundEffectMap_["player_shoot"], 0);
 
-    //如果有弹道up技能，创建额外子弹
+    // 如果有弹道up技能，创建额外子弹
     if(extraRows > 0){
-        float offsetX = playerbullet->width * 0.5f;        
-        for(int i = 0; i <= extraRows; i++){
-            PlayerBullet *extraBullet = new PlayerBullet();
-            *extraBullet = playerBulletTemplate;
-            extraBullet->position.x = player.position.x + offsetX * (i + 1);
-            extraBullet->position.y = player.position.y;
-            playerBullets.push_back(extraBullet);
+        float offsetX = playerBullet->width_ * 0.5f;        
+        std::vector<SDL_FPoint> bulletPositions;
+        bulletPositions.reserve(extraRows * 2 + 1);
 
-            PlayerBullet *extraBullet2 = new PlayerBullet();
-            *extraBullet2 = playerBulletTemplate;
-            extraBullet2->position.x = player.position.x - offsetX * (i + 1);
-            extraBullet2->position.y = player.position.y;
-            playerBullets.push_back(extraBullet2);
-        }        
+        // 添加中心子弹位置
+        bulletPositions.push_back({playerBullet->position_.x, playerBullet->position_.y});
+
+        // 添加左侧子弹位置
+        for(int i = 0; i <= extraRows; ++i){
+            bulletPositions.push_back({playerBullet->position_.x - offsetX * (i + 1), playerBullet->position_.y});
+        }
+        
+        // 添加右侧子弹位置
+        for(int i = 0; i <= extraRows; ++i){
+            bulletPositions.push_back({playerBullet->position_.x + offsetX * (i + 1), playerBullet->position_.y});
+        }
+
+        // 创建所有子弹
+        for(const auto& pos : bulletPositions){
+            PlayerBullet* extraBullet = new PlayerBullet();
+            *extraBullet = playerBulletTemplate_;
+            extraBullet->position_ = pos;
+            playerBullets_.push_back(extraBullet);
+        }
     }
 }
 
-void SceneMain::updateplayerbullets(float deltaTime)
+void SceneMain::updatePlayerBullets(float deltaTime)
 {   
-    int margin = 32; //子弹超出屏幕范围删除
-    for (auto it = playerBullets.begin(); it != playerBullets.end();){
+    int margin = 32; // 子弹超出屏幕范围删除
+    for (auto it = playerBullets_.begin(); it != playerBullets_.end();){
 
-        auto playerbullet = *it;
-        playerbullet->position.y -= deltaTime * playerbullet->speed;
-        //子弹超出屏幕范围删除
-        if (playerbullet->position.y + margin < 0){
-            delete playerbullet;
-            it = playerBullets.erase(it);            
-        }else {
+        auto playerBullet = *it;
+        playerBullet->position_.y -= deltaTime * playerBullet->speed_;
+        
+        // 子弹超出屏幕范围删除
+        if (playerBullet->position_.y + margin < 0){
+            delete playerBullet;
+            it = playerBullets_.erase(it);            
+        } else {
             bool isHit = false;
-            for(auto enemy : enemies){
-                
-                SDL_Rect enmyRect = {
-                    static_cast<int>(enemy->position.x),
-                    static_cast<int>(enemy->position.y),
-                    enemy->width,
-                    enemy->height
-                };
-                SDL_Rect playerBulletRect = {
-                    static_cast<int>(playerbullet->position.x),
-                    static_cast<int>(playerbullet->position.y),
-                    playerbullet->width,
-                    playerbullet->height
-                };
-                if(SDL_HasIntersection(&enmyRect,&playerBulletRect)){
-                    enemy->hp -= playerbullet->damage;
-                    delete playerbullet;
-                    it = playerBullets.erase(it);
-                    isHit = true;
-                    break;
-                }                                        
+            if(!enemies_.empty()){
+                for(auto enemy : enemies_){
+                    SDL_Rect enemyRect = {
+                        static_cast<int>(enemy->position_.x),
+                        static_cast<int>(enemy->position_.y),
+                        enemy->width_,
+                        enemy->height_
+                    };
+                    
+                    SDL_Rect playerBulletRect = {
+                        static_cast<int>(playerBullet->position_.x),
+                        static_cast<int>(playerBullet->position_.y),
+                        playerBullet->width_,
+                        playerBullet->height_
+                    };
+                    
+                    if(SDL_HasIntersection(&enemyRect, &playerBulletRect)){
+                        enemy->hp_ -= playerBullet->damage_;
+                        delete playerBullet;
+                        it = playerBullets_.erase(it);
+                        isHit = true;
+                        Mix_PlayChannel(-1, soundEffectMap_["hit"], 0);
+                        break;
+                    }                                        
+                }
             }
             if(!isHit){
                 ++it;
             }           
         }
     }
-
-        
 }
 
 void SceneMain::renderPlayerBullets()
 {
-   for(auto playerbullet : playerBullets){
-        SDL_Rect PlayerBulletRect = { 
-                            static_cast<int>(playerbullet->position.x),
-                            static_cast<int>(playerbullet->position.y),
-                            playerbullet->width,
-                            playerbullet->height};                            
-        SDL_RenderCopy(game.getRenderer(), playerbullet->texture, NULL,&PlayerBulletRect);
+   for(auto playerBullet : playerBullets_){
+        SDL_Rect playerBulletRect = { 
+            static_cast<int>(playerBullet->position_.x),
+            static_cast<int>(playerBullet->position_.y),
+            playerBullet->width_,
+            playerBullet->height_
+        };                            
+        SDL_RenderCopy(game_.getRenderer(), playerBullet->texture_, nullptr, &playerBulletRect);
    }
 }
+
 
 /*********创建敌人飞船*********************************************/
 void SceneMain::spawnEnemy()
 {
-    
-    if(dis(gen) > 1 / 60.0f){
+    if(dis_(gen_) > 1 / 60.0f){
         return;    
     }
-    Enemy *enemy = new Enemy(enemyTemplate);
-    enemy ->position.x =dis(gen) * (game.getWindowWidth() - enemy->width);
-    enemy ->position.y = static_cast<float>(-enemy->height);
-    enemies.push_back(enemy);
+    
+    Enemy* enemy = new Enemy(enemyTemplate_);
+    enemy->position_.x = dis_(gen_) * (game_.getWindowWidth() - enemy->width_);
+    enemy->position_.y = static_cast<float>(-enemy->height_);
+    enemies_.push_back(enemy);
 }
 
 void SceneMain::updateEnemies(float deltaTime)
 {
     auto currentTime = SDL_GetTicks();
-    for (auto it = enemies.begin(); it != enemies.end();){
+    for (auto it = enemies_.begin(); it != enemies_.end();){
         auto enemy = *it;
-        enemy->position.y += deltaTime * enemy->speed;
-        if (enemy->position.y > game.getWindowHeight()){
+        enemy->position_.y += deltaTime * enemy->speed_;
+        
+        if (enemy->position_.y > game_.getWindowHeight()){
             delete enemy;
-            it = enemies.erase(it);
-        }else {
-            if(currentTime - enemy->lastShotTime > enemy->coolDown && isDeath == false){
-                enemybulletControl(enemy);
-                enemy->lastShotTime = currentTime;                
-            }
-            if(enemy->hp <= 0){
-                enemyExplode(enemy);
-                it = enemies.erase(it);
-            }
-            else {
-                ++it;
+            it = enemies_.erase(it);
+        } else {
+            if(currentTime - enemy->lastShotTime_ > enemy->coolDown_ && isDeath_ == false){
+                createEnemyBullets(enemy);
+                enemy->lastShotTime_ = currentTime;                
             }
             
+            if(enemy->hp_ <= 0){
+                enemyExplode(enemy);
+                it = enemies_.erase(it);
+            } else {
+                ++it;
+            }
         }
     }    
 }
 
 void SceneMain::renderEnemies()
 {
-    for(auto enemy : enemies){
+    for(auto enemy : enemies_){
         SDL_Rect enemyRect = { 
-                            static_cast<int>(enemy->position.x),
-                            static_cast<int>(enemy->position.y),
-                            enemy->width,
-                            enemy->height};                            
-        SDL_RenderCopy(game.getRenderer(), enemy->texture, NULL,&enemyRect);
+            static_cast<int>(enemy->position_.x),
+            static_cast<int>(enemy->position_.y),
+            enemy->width_,
+            enemy->height_
+        };                            
+        SDL_RenderCopy(game_.getRenderer(), enemy->texture_, nullptr, &enemyRect);
     }
 }
 
 /*********创建敌人子弹*********************************************/
-void SceneMain::enemybulletControl(Enemy *enemy)
+void SceneMain::createEnemyBullets(Enemy* enemy)
 {
-    auto enemybullet = new EnemyBullet();
-    *enemybullet = enemyBulletTemplate;
-    enemybullet->position.x = enemy->position.x + enemy->width/2 - enemybullet->width/2;
-    enemybullet->position.y = enemy->position.y + enemy->height/2 - enemybullet->height/2;
-    enemybullet->direction = getEnemyBulletDirecition(enemy);
-    enemyBullets.push_back(enemybullet);
+    auto enemyBullet = new EnemyBullet();
+    *enemyBullet = enemyBulletTemplate_;
+    enemyBullet->position_.x = enemy->position_.x + enemy->width_ / 2 - enemyBullet->width_ / 2;
+    enemyBullet->position_.y = enemy->position_.y + enemy->height_ / 2 - enemyBullet->height_ / 2;
+    enemyBullet->direction_ = getEnemyBulletDirection(enemy);
+    enemyBullets_.push_back(enemyBullet);
+    Mix_PlayChannel(-1, soundEffectMap_["enemy_shoot"], 0);
 }
-SDL_FPoint SceneMain::getEnemyBulletDirecition(Enemy *enemy)
+
+SDL_FPoint SceneMain::getEnemyBulletDirection(Enemy* enemy)
 {
-    auto x = player.position.x + player.width/2 - enemy->position.x - enemy->width/2;
-    auto y = player.position.y + player.height/2 - enemy->position.y - enemy->height/2;
+    auto x = player_.position_.x + player_.width_ / 2 - enemy->position_.x - enemy->width_ / 2;
+    auto y = player_.position_.y + player_.height_ / 2 - enemy->position_.y - enemy->height_ / 2;
     auto length = sqrt(x * x + y * y);
     x /= length;
     y /= length;
-    return SDL_FPoint{x,y};
+    return SDL_FPoint{x, y};
 }
 
 void SceneMain::updateEnemyBullets(float deltaTime)
 {
     auto margin = 32;
-    for (auto it = enemyBullets.begin(); it != enemyBullets.end();){
-        auto enemybullet = *it;
-        enemybullet->position.x += deltaTime * enemybullet->speed * enemybullet->direction.x;
-        enemybullet->position.y += deltaTime * enemybullet->speed * enemybullet->direction.y;
-        if (enemybullet->position.y > game.getWindowHeight() + margin ||
-            enemybullet->position.y < -margin ||
-            enemybullet->position.x > game.getWindowHeight() + margin ||
-            enemybullet->position.x < -margin){                
-                delete enemybullet;
-                it = enemyBullets.erase(it);
-        }
-        else {            
+    for (auto it = enemyBullets_.begin(); it != enemyBullets_.end();){
+        auto enemyBullet = *it;
+        enemyBullet->position_.x += deltaTime * enemyBullet->speed_ * enemyBullet->direction_.x;
+        enemyBullet->position_.y += deltaTime * enemyBullet->speed_ * enemyBullet->direction_.y;
+        
+        if (enemyBullet->position_.y > game_.getWindowHeight() + margin ||
+            enemyBullet->position_.y < -margin ||
+            enemyBullet->position_.x > game_.getWindowHeight() + margin ||
+            enemyBullet->position_.x < -margin){                
+                delete enemyBullet;
+                it = enemyBullets_.erase(it);
+        } else {            
             SDL_Rect enemyBulletRect = {
-                static_cast<int>(enemybullet->position.x),
-                static_cast<int>(enemybullet->position.y),
-                enemybullet->width,
-                enemybullet->height
+                static_cast<int>(enemyBullet->position_.x),
+                static_cast<int>(enemyBullet->position_.y),
+                enemyBullet->width_,
+                enemyBullet->height_
             }; 
                             
             SDL_Rect playerRect = {
-                static_cast<int>(player.position.x),
-                static_cast<int>(player.position.y),
-                player.width,
-                player.height
+                static_cast<int>(player_.position_.x),
+                static_cast<int>(player_.position_.y),
+                player_.width_,
+                player_.height_
             };
-            if(SDL_HasIntersection(&enemyBulletRect,&playerRect) && isDeath == false){
-                //检查无敌技能
-                if(skillManager.invincible && 
-                    skillManager.invincible->isUsing && 
-                    skillManager.invincible->invincible){
-                        delete enemybullet;
-                        it = enemyBullets.erase(it);                                      
+            
+            if(SDL_HasIntersection(&enemyBulletRect, &playerRect) && isDeath_ == false){
+                // 检查无敌技能
+                if(skillManager_.invincible_ && 
+                    skillManager_.invincible_->isUsing_ && 
+                    skillManager_.invincible_->invincible_){
+                        delete enemyBullet;
+                        it = enemyBullets_.erase(it);                                      
                 }
-                //检查盾反技能
-                else if(skillManager.shieldReflect && 
-                    skillManager.shieldReflect->isUsing && 
-                    skillManager.shieldReflect->reflectBulletts){
-                        enemybullet->direction.x = -enemybullet->direction.x;
-                        enemybullet->direction.y = -enemybullet->direction.y;
+                // 检查盾反技能
+                else if(skillManager_.shieldReflect_ && 
+                    skillManager_.shieldReflect_->isUsing_ && 
+                    skillManager_.shieldReflect_->reflectBullets_){
+                        enemyBullet->direction_.x = -enemyBullet->direction_.x;
+                        enemyBullet->direction_.y = -enemyBullet->direction_.y;
 
                         auto playerBullet = new PlayerBullet();
-                        playerBullet->texture = enemybullet->texture;
-                        playerBullet->position = enemybullet->position;
-                        playerBullet->width = enemybullet->width;
-                        playerBullet->height = enemybullet->height;
-                        playerBullet->speed = enemybullet->speed;
-                        playerBullet->damage = enemybullet->damage;
-                        playerBullets.push_back(playerBullet);
+                        playerBullet->texture_ = enemyBullet->texture_;
+                        playerBullet->position_ = enemyBullet->position_;
+                        playerBullet->width_ = enemyBullet->width_;
+                        playerBullet->height_ = enemyBullet->height_;
+                        playerBullet->speed_ = enemyBullet->speed_;
+                        playerBullet->damage_ = enemyBullet->damage_;
+                        playerBullets_.push_back(playerBullet);
 
-                        delete enemybullet;
-                        it = enemyBullets.erase(it);
+                        delete enemyBullet;
+                        it = enemyBullets_.erase(it);
 
-                        player.hp -= static_cast<int>(enemybullet->damage * skillManager.shieldReflect->damageReflection);
+                        player_.hp_ -= static_cast<int>(enemyBullet->damage_ * skillManager_.shieldReflect_->damageReflection_);
                 }
-                else if(player.shield > 0){
-                    player.shield -= enemybullet->damage;
-                    delete enemybullet;
-                    it = enemyBullets.erase(it);    
-                }
+                else if(player_.shield_ > 0){
+                    player_.shield_ -= enemyBullet->damage_;
+                    delete enemyBullet;
+                    it = enemyBullets_.erase(it);
+                    Mix_PlayChannel(-1, soundEffectMap_["hit"], 0);  
+                }                
                 else{
-                    player.hp -= enemybullet->damage;
-                    delete enemybullet;
-                    it = enemyBullets.erase(it);
-
+                    player_.hp_ -= enemyBullet->damage_;
+                    delete enemyBullet;
+                    it = enemyBullets_.erase(it);
+                    Mix_PlayChannel(-1, soundEffectMap_["hit"], 0);
                 }                                              
             }
             else {
                 ++it;
             }
-            
         } 
     }
 }                                     
 
 void SceneMain::renderEnemyBullets()
 {
-    for(auto enemybullet : enemyBullets){
+    for(auto enemyBullet : enemyBullets_){
         SDL_Rect enemyBulletRect = { 
-                            static_cast<int>(enemybullet->position.x),
-                            static_cast<int>(enemybullet->position.y),
-                            enemybullet->width,
-                            enemybullet->height};                            
-        double angle = atan2f(enemybullet->direction.y, enemybullet->direction.x) * 180.0f / M_PI - 90.0f;
-        SDL_RenderCopyEx(game.getRenderer(), enemybullet->texture, NULL,&enemyBulletRect,angle,NULL,SDL_FLIP_NONE);
+            static_cast<int>(enemyBullet->position_.x),
+            static_cast<int>(enemyBullet->position_.y),
+            enemyBullet->width_,
+            enemyBullet->height_
+        };                            
+        double angle = atan2f(enemyBullet->direction_.y, enemyBullet->direction_.x) * 180.0 / M_PI - 90.0f;
+        SDL_RenderCopyEx(game_.getRenderer(), enemyBullet->texture_, nullptr, &enemyBulletRect, angle, nullptr, SDL_FLIP_NONE);
    }
 }
 
+
 /*********敌人爆炸*********************************************/
-void SceneMain::enemyExplode(Enemy *enemy)
+void SceneMain::enemyExplode(Enemy* enemy)
 {
     auto currentTime = SDL_GetTicks();
-    auto explosion = new Explosion(explosionTemplate);
-    explosion->position.x = enemy->position.x + enemy->width/2 - explosion->width/2;
-    explosion->position.y = enemy->position.y + enemy->height/2 - explosion->height/2;
-    explosion->startTime = currentTime;
-    explosions.push_back(explosion);   
+    auto explosion = new Explosion(explosionTemplate_);
+    explosion->position_.x = enemy->position_.x + enemy->width_ / 2 - explosion->width_ / 2;
+    explosion->position_.y = enemy->position_.y + enemy->height_ / 2 - explosion->height_ / 2;
+    explosion->startTime_ = currentTime;
+    explosions_.push_back(explosion); 
+    Mix_PlayChannel(-1, soundEffectMap_["enemy_explode"], 0);  
     dropItem(enemy);  
     delete enemy;
 }
 
-void SceneMain::updateExplosions(float)
+void SceneMain::updateExplosions(float deltaTime)
 {
+    (void)deltaTime;//声明但不使用
     auto currentTime = SDL_GetTicks();
-    for (auto it = explosions.begin(); it != explosions.end();){
+    for (auto it = explosions_.begin(); it != explosions_.end();){
         auto explosion = *it;
-        explosion->currentFrame = (currentTime - explosion->startTime) * explosion->FPS / 1000; 
-        if (explosion->currentFrame >= explosion->totalFrame){
+        explosion->currentFrame_ = (currentTime - explosion->startTime_) * explosion->fps_ / 1000; 
+        if (explosion->currentFrame_ >= explosion->totalFrame_){
             delete explosion;
-            it = explosions.erase(it);
-        }
-        else {
+            it = explosions_.erase(it);
+        } else {
             ++it;
         }
     }
@@ -671,172 +793,171 @@ void SceneMain::updateExplosions(float)
 
 void SceneMain::renderExplosions()
 {
-    for(auto explosion : explosions){
-        SDL_Rect src  = {
-            explosion->currentFrame * explosion->width,
+    for(auto explosion : explosions_){
+        SDL_Rect src = {
+            explosion->currentFrame_ * explosion->width_,
             0,
-            explosion->width,
-            explosion->height
+            explosion->width_,
+            explosion->height_
         };
         SDL_Rect dst = {
-            static_cast<int>(explosion->position.x),
-            static_cast<int>(explosion->position.y),
-            explosion->width,
-            explosion->height
+            static_cast<int>(explosion->position_.x),
+            static_cast<int>(explosion->position_.y),
+            explosion->width_,
+            explosion->height_
         };
-        SDL_RenderCopy(game.getRenderer(), explosion->texture, &src, &dst);
+        SDL_RenderCopy(game_.getRenderer(), explosion->texture_, &src, &dst);
     }
-    
 }
+
 /*********道具掉落*********************************************/
-void SceneMain::dropItem(Enemy *enemy)
+void SceneMain::dropItem(Enemy* enemy)
 {
-    float dropChance = dis(gen); 
-    Item *item;
+    float dropChance = dis_(gen_); 
+    Item* item;
+    
     if(dropChance < 0.2f){
-        //20%概率血包
+        // 20%概率血包
         item = new HealthPack();
-        *item = itemHealthPackTemplate;
-        item->type = ItemType::HealthPack;
+        *item = itemHealthPackTemplate_;
+        item->type_ = ItemType::HealthPack;
     }
     else if(dropChance < 0.35f){
-        //15%概率护盾
+        // 15%概率护盾
         item = new ShieldPack();
-        *item = itemShieldPackTemplate;
-        item->type = ItemType::ShieldPack;
+        *item = itemShieldPackTemplate_;
+        item->type_ = ItemType::ShieldPack;
     }
     else if(dropChance < 0.5f){
-        //15%概率cd包
+        // 15%概率cd包
         item = new SkillCDPack();
-        *item = itemSkillCDPackTemplate;
-        item->type = ItemType::SkillCDPack;
+        *item = itemSkillCDPackTemplate_;
+        item->type_ = ItemType::SkillCDPack;
     }
     else{
-        //50%概率无道具
+        // 50%概率无道具
         return;
     }
 
-    item->position.x = enemy->position.x + enemy->width/2 - item->width/2;
-    item->position.y = enemy->position.y + enemy->height/2 - item->height/2;
-    double angle = dis(gen) * 2 * M_PI;
-    item->direction.x = static_cast<float>(cos(angle));
-    item->direction.y = static_cast<float>(sin(angle));
-    items.push_back(item);
+    item->position_.x = enemy->position_.x + enemy->width_ / 2 - item->width_ / 2;
+    item->position_.y = enemy->position_.y + enemy->height_ / 2 - item->height_ / 2;
+    double angle = dis_(gen_) * 2 * M_PI;
+    item->direction_.x = static_cast<float>(cos(angle));
+    item->direction_.y = static_cast<float>(sin(angle));
+    items_.push_back(item);
 }
 
-void SceneMain::playerGetItem(Item *item)
+void SceneMain::playerGetItem(Item* item)
 {
-    //血包获取
-    if(item -> type == ItemType::HealthPack){
-        player.hp += 1;        
-        if(player.hp > player.maxHp){
-            player.hp = player.maxHp;
+    // 血包获取
+    if(item->type_ == ItemType::HealthPack){
+        player_.hp_ += 1;        
+        if(player_.hp_ > player_.maxHp_){
+            player_.hp_ = player_.maxHp_;
         }
     }
-    //护盾获取
-    else if(item -> type == ItemType::ShieldPack){
-        player.shield += 1;
-        if(player.shield > player.maxShield){
-            player.shield = player.maxShield;
+    // 护盾获取
+    else if(item->type_ == ItemType::ShieldPack){
+        player_.shield_ += 1;
+        if(player_.shield_ > player_.maxShield_){
+            player_.shield_ = player_.maxShield_;
         }
     }
-    //cd包减少cd时间
-    else if(item -> type == ItemType::SkillCDPack){
+    // cd包减少cd时间
+    else if(item->type_ == ItemType::SkillCDPack){
         skillCDPackEffect();
-    }
-
-
+    }    
+    Mix_PlayChannel(-1, soundEffectMap_["enemy_shoot"], 0);
 }
 
 void SceneMain::updateItems(float deltaTime)
 {
-        
-    for(auto it = items.begin(); it != items.end();){
+    for(auto it = items_.begin(); it != items_.end();){
         auto item = *it;
 
-        item->position.x += deltaTime * item->speed * item->direction.x;
-        item->position.y += deltaTime * item->speed * item->direction.y;
+        item->position_.x += deltaTime * item->speed_ * item->direction_.x;
+        item->position_.y += deltaTime * item->speed_ * item->direction_.y;
 
-        bool outOfScreen =  item->position.x < 0 ||
-                            item->position.x > game.getWindowWidth() - item->width ||
-                            item->position.y < 0 || 
-                            item->position.y > game.getWindowHeight() - item->height;
+        bool outOfScreen =  item->position_.x < 0 ||
+                            item->position_.x > game_.getWindowWidth() - item->width_ ||
+                            item->position_.y < 0 || 
+                            item->position_.y > game_.getWindowHeight() - item->height_;
         bool needBounce = false;
 
-        //碰撞边缘三次后，超出屏幕删除
-        if(item->position.x < 0 && item->bounceCount > 0){
-            item->direction.x = -item->direction.x; 
-            item->bounceCount--;
+        // 碰撞边缘三次后，超出屏幕删除
+        if(item->position_.x < 0 && item->bounceCount_ > 0){
+            item->direction_.x = -item->direction_.x; 
+            item->bounceCount_--;
             needBounce = true;           
         }
-        if(item->position.x > game.getWindowWidth() - item->width && item->bounceCount > 0){
-            item->direction.x = -item->direction.x;
-            item->bounceCount--;
+        if(item->position_.x > game_.getWindowWidth() - item->width_ && item->bounceCount_ > 0){
+            item->direction_.x = -item->direction_.x;
+            item->bounceCount_--;
             needBounce = true;
         }
-        if(item->position.y < 0 && item->bounceCount > 0){
-            item->direction.y = -item->direction.y;
-            item->bounceCount--;
+        if(item->position_.y < 0 && item->bounceCount_ > 0){
+            item->direction_.y = -item->direction_.y;
+            item->bounceCount_--;
             needBounce = true;
         }
-        if(item->position.y > game.getWindowHeight() - item->height && item->bounceCount > 0){
-            item->direction.y = -item->direction.y;
-            item->bounceCount--;
+        if(item->position_.y > game_.getWindowHeight() - item->height_ && item->bounceCount_ > 0){
+            item->direction_.y = -item->direction_.y;
+            item->bounceCount_--;
             needBounce = true;
         }
 
         if(outOfScreen && !needBounce){
-                delete item;
-                it = items.erase(it);
+            delete item;
+            it = items_.erase(it);
         }
-        //碰撞检测,拾取道具
+        // 碰撞检测,拾取道具
         else {
             SDL_Rect itemRect = {
-                static_cast<int>(item->position.x),
-                static_cast<int>(item->position.y),
-                item->width,
-                item->height        
+                static_cast<int>(item->position_.x),
+                static_cast<int>(item->position_.y),
+                item->width_,
+                item->height_        
             };
             SDL_Rect playerRect = {
-                static_cast<int>(player.position.x),
-                static_cast<int>(player.position.y),
-                player.width,
-                player.height
+                static_cast<int>(player_.position_.x),
+                static_cast<int>(player_.position_.y),
+                player_.width_,
+                player_.height_
             };
-            if(SDL_HasIntersection(&itemRect,&playerRect)){
+            
+            if(SDL_HasIntersection(&itemRect, &playerRect) && isDeath_ == false){
                 playerGetItem(item);
                 delete item;
-                it = items.erase(it);
+                it = items_.erase(it);
             }
             else {
                 ++it;
             }
-                
         }
     };
-    
 }
 
 void SceneMain::renderItems()
 { 
-    for(auto item : items){
+    for(auto item : items_){
         SDL_Rect itemRect = {
-            static_cast<int>(item->position.x),
-            static_cast<int>(item->position.y),
-            item->width,
-            item->height
+            static_cast<int>(item->position_.x),
+            static_cast<int>(item->position_.y),
+            item->width_,
+            item->height_
         };
-        SDL_RenderCopy(game.getRenderer(), item->texture, nullptr, &itemRect);
+        SDL_RenderCopy(game_.getRenderer(), item->texture_, nullptr, &itemRect);
     }
 }
 
+
 void SceneMain::skillCDPackEffect()
 {
-    for(auto skill : skillManager.skills){
-        if (skill->currentCooldownTime > 0.0f){
-            skill->currentCooldownTime *= 0.7f;
-            if(skill->currentCooldownTime < 0.0f){
-                skill->currentCooldownTime = 0.0f;
+    for(auto skill : skillManager_.skills_){
+        if (skill->currentCooldownTime_ > 0.0f){
+            skill->currentCooldownTime_ *= 0.7f;
+            if(skill->currentCooldownTime_ < 0.0f){
+                skill->currentCooldownTime_ = 0.0f;
             }
         }
     }
@@ -844,75 +965,74 @@ void SceneMain::skillCDPackEffect()
 
 void SceneMain::initSkill()
 {
-    //创建盾反技能
-    skillManager.shieldReflect = new ShieldReflect();
-    skillManager.shieldReflect->type = SkillType::ShieldReflect;
-    skillManager.shieldReflect->cooldDownTime = 7.0f;
-    skillManager.shieldReflect->durationTime= 4.0f;
-    skillManager.shieldReflect->currentCooldownTime = 0.0f;
-    skillManager.shieldReflect->currentDurationTime = 0.0f;
-    skillManager.shieldReflect->isUsing = false;
-    skillManager.shieldReflect->damageReflection = 0.5f;
-    skillManager.shieldReflect->reflectBulletts = false;
-    skillManager.skills.push_back(skillManager.shieldReflect);
+    // 创建盾反技能
+    skillManager_.shieldReflect_ = new ShieldReflect();
+    skillManager_.shieldReflect_->type_ = SkillType::ShieldReflect;
+    skillManager_.shieldReflect_->coolDownTime_ = 7.0f;
+    skillManager_.shieldReflect_->durationTime_ = 4.0f;
+    skillManager_.shieldReflect_->currentCooldownTime_ = 0.0f;
+    skillManager_.shieldReflect_->currentDurationTime_ = 0.0f;
+    skillManager_.shieldReflect_->isUsing_ = false;
+    skillManager_.shieldReflect_->damageReflection_ = 0.5f;
+    skillManager_.shieldReflect_->reflectBullets_ = false;
+    skillManager_.skills_.push_back(skillManager_.shieldReflect_);
 
-    //创建无敌技能
-    skillManager.invincible = new Invincible();
-    skillManager.invincible->type = SkillType::Invincible;
-    skillManager.invincible->cooldDownTime = 10.0f;
-    skillManager.invincible->durationTime = 3.0f;
-    skillManager.invincible->currentCooldownTime = 0.0f;
-    skillManager.invincible->currentDurationTime = 0.0f;
-    skillManager.invincible->isUsing = false;
-    skillManager.invincible->invincible = false;
-    skillManager.skills.push_back(skillManager.invincible);
+    // 创建无敌技能
+    skillManager_.invincible_ = new Invincible();
+    skillManager_.invincible_->type_ = SkillType::Invincible;
+    skillManager_.invincible_->coolDownTime_ = 10.0f;
+    skillManager_.invincible_->durationTime_ = 3.0f;
+    skillManager_.invincible_->currentCooldownTime_ = 0.0f;
+    skillManager_.invincible_->currentDurationTime_ = 0.0f;
+    skillManager_.invincible_->isUsing_ = false;
+    skillManager_.invincible_->invincible_ = false;
+    skillManager_.skills_.push_back(skillManager_.invincible_);
 
-    //创建射速up技能
-    skillManager.bulletSpeedUp = new BulletSpeedUp();
-    skillManager.bulletSpeedUp->type = SkillType::BulletSpeedUp;
-    skillManager.bulletSpeedUp->cooldDownTime = 10.0f;
-    skillManager.bulletSpeedUp->durationTime = 20.0f;
-    skillManager.bulletSpeedUp->currentCooldownTime = 0.0f;
-    skillManager.bulletSpeedUp->currentDurationTime = 0.0f;
-    skillManager.bulletSpeedUp->isUsing = false;
-    skillManager.bulletSpeedUp->bulletSpeedUp = 2.0f;
-    skillManager.skills.push_back(skillManager.bulletSpeedUp);
+    // 创建射速up技能
+    skillManager_.bulletSpeedUp_ = new BulletSpeedUp();
+    skillManager_.bulletSpeedUp_->type_ = SkillType::BulletSpeedUp;
+    skillManager_.bulletSpeedUp_->coolDownTime_ = 10.0f;
+    skillManager_.bulletSpeedUp_->durationTime_ = 20.0f;
+    skillManager_.bulletSpeedUp_->currentCooldownTime_ = 0.0f;
+    skillManager_.bulletSpeedUp_->currentDurationTime_ = 0.0f;
+    skillManager_.bulletSpeedUp_->isUsing_ = false;
+    skillManager_.bulletSpeedUp_->bulletSpeedUp_ = 2.0f;
+    skillManager_.skills_.push_back(skillManager_.bulletSpeedUp_);
 
-    //创建弹道up技能
-    skillManager.bulletBallisticUp = new BulletBallisticUp();
-    skillManager.bulletBallisticUp->type = SkillType::BulletBallisticUp;
-    skillManager.bulletBallisticUp->cooldDownTime = 10.0f;
-    skillManager.bulletBallisticUp->durationTime = 20.0f;
-    skillManager.bulletBallisticUp->currentCooldownTime = 0.0f;
-    skillManager.bulletBallisticUp->currentDurationTime = 0.0f;
-    skillManager.bulletBallisticUp->isUsing = false;
-    skillManager.bulletBallisticUp->bulletBallisticUp = 1;
-    skillManager.skills.push_back(skillManager.bulletBallisticUp);
-
+    // 创建弹道up技能
+    skillManager_.bulletBallisticUp_ = new BulletBallisticUp();
+    skillManager_.bulletBallisticUp_->type_ = SkillType::BulletBallisticUp;
+    skillManager_.bulletBallisticUp_->coolDownTime_ = 10.0f;
+    skillManager_.bulletBallisticUp_->durationTime_ = 20.0f;
+    skillManager_.bulletBallisticUp_->currentCooldownTime_ = 0.0f;
+    skillManager_.bulletBallisticUp_->currentDurationTime_ = 0.0f;
+    skillManager_.bulletBallisticUp_->isUsing_ = false;
+    skillManager_.bulletBallisticUp_->bulletBallisticUp_ = 1;
+    skillManager_.skills_.push_back(skillManager_.bulletBallisticUp_);
 }
 
 void SceneMain::activateSkill(SkillType skillType)
 {
-    for (auto skill : skillManager.skills){
-        if(skill->type == skillType && skill->currentCooldownTime <= 0 && !skill->isUsing){
-            skill->isUsing = true;
-            skill->currentCooldownTime = skill->cooldDownTime;
-            skill->currentDurationTime = skill->durationTime;  
+    for (auto skill : skillManager_.skills_){
+        if(skill->type_ == skillType && skill->currentCooldownTime_ <= 0 && !skill->isUsing_){
+            skill->isUsing_ = true;
+            skill->currentCooldownTime_ = skill->coolDownTime_;
+            skill->currentDurationTime_ = skill->durationTime_;  
             
-            //根据技能类型激活技能
+            // 根据技能类型激活技能
             switch (skillType)
             {
             case SkillType::ShieldReflect:
-                skillManager.shieldReflect->reflectBulletts = true;
+                skillManager_.shieldReflect_->reflectBullets_ = true;
                 break;
             case SkillType::Invincible:
-                skillManager.invincible->invincible = true;
+                skillManager_.invincible_->invincible_ = true;
                 break;
             case SkillType::BulletSpeedUp:
-                skillManager.bulletSpeedUp->bulletSpeedUp = 2.0f;
+                skillManager_.bulletSpeedUp_->bulletSpeedUp_ = 2.0f;
                 break;
             case SkillType::BulletBallisticUp:
-                skillManager.bulletBallisticUp->bulletBallisticUp++;
+                skillManager_.bulletBallisticUp_->bulletBallisticUp_++;
                 break;
             }            
         }
@@ -921,74 +1041,244 @@ void SceneMain::activateSkill(SkillType skillType)
 
 void SceneMain::updateSkill(float deltaTime)
 {
-    for (auto skill : skillManager.skills){
-        if(skill->currentCooldownTime >0){
-            skill->currentCooldownTime -= deltaTime;
-            if(skill->currentCooldownTime < 0){
-                skill->currentCooldownTime = 0;                
-            }
+    // 更新盾反技能
+    if(skillManager_.shieldReflect_->currentCooldownTime_ > 0){
+        skillManager_.shieldReflect_->currentCooldownTime_ -= deltaTime;
+        if(skillManager_.shieldReflect_->currentCooldownTime_ < 0){    
+            skillManager_.shieldReflect_->currentCooldownTime_ = 0;
         }
+    }
 
-        //更新效果持续时间
-        if(skill->isUsing){
-            skill->currentCooldownTime -= deltaTime;
-            
-            if(skill->currentDurationTime <= 0){
-                skill->isUsing = false;
-                skill->currentDurationTime = 0;
-                //根据技能类型取消技能效果
-                switch (skill->type)
-                {
-                case SkillType::ShieldReflect:
-                    skillManager.shieldReflect->reflectBulletts = false;
-                    break;
-                case SkillType::Invincible:
-                    skillManager.invincible->invincible = false;
-                    break;
-                case SkillType::BulletSpeedUp:
-                    skillManager.bulletSpeedUp->bulletSpeedUp = 1.0f;
-                    break;
-                case SkillType::BulletBallisticUp:
-                    skillManager.bulletBallisticUp->bulletBallisticUp = 0;
-                    break;
-                }
-            }
+    if(skillManager_.shieldReflect_->currentDurationTime_ > 0){
+        skillManager_.shieldReflect_->currentDurationTime_ -= deltaTime;
+        if(skillManager_.shieldReflect_->currentDurationTime_ < 0){
+            skillManager_.shieldReflect_->isUsing_ = false;
+            skillManager_.shieldReflect_->currentDurationTime_ = 0;            
+            skillManager_.shieldReflect_->reflectBullets_ = false;
         }
-        
+    }
+
+    // 更新盾反技能帧动画
+    if(skillManager_.shieldReflect_->isUsing_) {
+        shieldEffectFrameTime_ += deltaTime;
+        if(shieldEffectFrameTime_ >= 0.1f) { // 每0.1秒切换一帧
+            shieldEffectFrameTime_ -= 0.1f;
+            shieldEffectCurrentFrame_ = (shieldEffectCurrentFrame_ + 1) % 4; // 假设有4帧
+        }
+    } else {
+        shieldEffectCurrentFrame_ = 0; // 技能未激活时重置为第一帧
+    }
+
+    // 更新无敌技能特效时间
+    if(skillManager_.invincible_->isUsing_) {
+        invincibleEffectTime_ += deltaTime;
+    }
+
+    // 更新无敌技能
+    if(skillManager_.invincible_->currentCooldownTime_ > 0){
+        skillManager_.invincible_->currentCooldownTime_ -= deltaTime;
+        if(skillManager_.invincible_->currentCooldownTime_ < 0){
+            skillManager_.invincible_->currentCooldownTime_ = 0;
+        }
+    }
+
+    if(skillManager_.invincible_->currentDurationTime_ > 0){
+        skillManager_.invincible_->currentDurationTime_ -= deltaTime;
+        if(skillManager_.invincible_->currentDurationTime_ < 0){
+            skillManager_.invincible_->isUsing_ = false;
+            skillManager_.invincible_->currentDurationTime_ = 0;
+            skillManager_.invincible_->invincible_ = false;
+        }
+    }
+
+    // 更新射速up技能
+    if(skillManager_.bulletSpeedUp_->currentCooldownTime_ > 0){
+        skillManager_.bulletSpeedUp_->currentCooldownTime_ -= deltaTime;
+        if(skillManager_.bulletSpeedUp_->currentCooldownTime_ < 0){
+            skillManager_.bulletSpeedUp_->currentCooldownTime_ = 0;
+        }
+    }
+
+    if(skillManager_.bulletSpeedUp_->currentDurationTime_ > 0){
+        skillManager_.bulletSpeedUp_->currentDurationTime_ -= deltaTime;
+        if(skillManager_.bulletSpeedUp_->currentDurationTime_ < 0){
+            skillManager_.bulletSpeedUp_->isUsing_ = false;
+            skillManager_.bulletSpeedUp_->currentDurationTime_ = 0;
+        }
+    }
+
+    // 更新弹道up技能
+    if(skillManager_.bulletBallisticUp_->currentCooldownTime_ > 0){
+        skillManager_.bulletBallisticUp_->currentCooldownTime_ -= deltaTime;
+        if(skillManager_.bulletBallisticUp_->currentCooldownTime_ < 0){
+            skillManager_.bulletBallisticUp_->currentCooldownTime_ = 0;
+        }
+    }
+
+    if(skillManager_.bulletBallisticUp_->currentDurationTime_ > 0){
+        skillManager_.bulletBallisticUp_->currentDurationTime_ -= deltaTime;
+        if(skillManager_.bulletBallisticUp_->currentDurationTime_ < 0){
+            skillManager_.bulletBallisticUp_->isUsing_ = false;
+            skillManager_.bulletBallisticUp_->currentDurationTime_ = 0;
+        }
+    }
+
+    skillPulseTime_ += deltaTime;
+    if(skillPulseTime_ > 2.0f * M_PI){
+        skillPulseTime_ -= static_cast<float>(2.0f * M_PI);        
     }
 }
 
 void SceneMain::renderSkill()
 {
-    //渲染盾反技能效果
-    if(skillManager.shieldReflect->reflectBulletts && 
-        skillManager.shieldReflect->isUsing && 
-        skillManager.shieldReflect->reflectBulletts){
-            //在玩家周围绘制光晕效果
-            SDL_Rect shieldRect = {
-                static_cast<int>(player.position.x - 10),
-                static_cast<int>(player.position.y - 10),
-                player.width + 20,
-                player.height + 20
+    // 只在技能激活时渲染效果
+    if(!skillManager_.shieldReflect_->isUsing_ && !skillManager_.invincible_->isUsing_){
+        return;       
+    }
+    
+    // 保持当前混合模式
+    SDL_BlendMode currentBlendMode;
+    Uint8 currentR, currentG, currentB, currentA;
+    SDL_GetRenderDrawBlendMode(game_.getRenderer(), &currentBlendMode);
+    SDL_GetRenderDrawColor(game_.getRenderer(), &currentR, &currentG, &currentB, &currentA);
+
+    // 启用混合模式以支持透明度
+    SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_BLEND);
+
+    // 计算脉冲因子（0.8 ~ 1.2）
+    float pulseFactor = 1.0f + 0.2f * static_cast<float>(sin(skillPulseTime_ * 3.0f));
+
+    // 渲染盾反技能效果
+    if(skillManager_.shieldReflect_->reflectBullets_ && 
+        skillManager_.shieldReflect_->isUsing_ && 
+        skillManager_.shieldReflect_->reflectBullets_){
+            // 获取纹理尺寸
+            int effectWidth, effectHeight;
+            SDL_QueryTexture(shieldEffectTexture_, nullptr, nullptr, &effectWidth, &effectHeight);
+
+            // 计算单帧宽度和高度
+            int frameWidth = effectWidth / 4;
+            int frameHeight = effectHeight;
+
+            // 计算特效位置和大小
+            int centerX = static_cast<int>(player_.position_.x + player_.width_ / 2);
+            int centerY = static_cast<int>(player_.position_.y + player_.height_ / 2);
+            float scaleMultiplier = 5.0f;
+            int scaleWidth = static_cast<int>(frameWidth * pulseFactor * scaleMultiplier);
+            int scaleHeight = static_cast<int>(frameHeight * pulseFactor * scaleMultiplier);
+
+            // 计算纹理矩形(当前帧)
+            SDL_Rect srcRect = {
+                shieldEffectCurrentFrame_ * frameWidth,
+                0,
+                frameWidth,
+                frameHeight
             };
-            SDL_SetRenderDrawColor(game.getRenderer(), 0, 191, 255, 128);
-            SDL_RenderFillRect(game.getRenderer(), &shieldRect);
-        
+
+            // 计算目标矩形(渲染位置和大小)
+            SDL_Rect dstRect = {
+                centerX - scaleWidth / 2,
+                centerY - scaleHeight / 2,
+                scaleWidth,
+                scaleHeight
+            };
+
+            // 渲染特效纹理
+            SDL_RenderCopy(game_.getRenderer(), shieldEffectTexture_, &srcRect, &dstRect);                    
     }
 
-    //渲染无敌技能效果
-    if(skillManager.invincible->invincible && 
-        skillManager.invincible->isUsing && 
-        skillManager.invincible->invincible){
-            //在玩家周围绘制发光效果
-            SDL_Rect glowRect = {
-                static_cast<int>(player.position.x - 5),
-                static_cast<int>(player.position.y - 5),
-                player.width + 10,
-                player.height + 10
-            };
-            SDL_SetRenderDrawColor(game.getRenderer(), 255, 255, 0, 128);
-            SDL_RenderFillRect(game.getRenderer(), &glowRect);
-        
+    // 渲染无敌技能效果
+    if(skillManager_.invincible_->invincible_ && 
+        skillManager_.invincible_->isUsing_ && 
+        skillManager_.invincible_->invincible_){
+            
+            // 计算玩家中心位置
+            int centerX = static_cast<int>(player_.position_.x + player_.width_ / 2);
+            int centerY = static_cast<int>(player_.position_.y + player_.height_ / 2);
+            
+            // 使用不同的变量名避免声明隐藏
+            float invinciblePulseFactor = 1.0f + 0.05f * static_cast<float>(sin(skillPulseTime_ * 3.0f));
+            
+            // 绘制外围光环（更亮的蓝紫色）
+            int outerRadius = static_cast<int>((player_.width_ / 2) * 1.2f * invinciblePulseFactor);
+            int innerRadius = static_cast<int>((player_.width_ / 2) * 0.9f * invinciblePulseFactor);
+            
+            // 使用多个同心圆创建渐变效果
+            for(int radius = innerRadius; radius <= outerRadius; radius += 1) {
+                // 计算透明度（外层更透明）
+                float alphaRatio = 1.0f - static_cast<float>(radius - innerRadius) / (outerRadius - innerRadius);
+                // 添加范围检查，确保alpha值在0-255范围内
+                int alphaValue = static_cast<int>(200 * alphaRatio);
+                Uint8 alpha = static_cast<Uint8>(std::min(255, std::max(0, alphaValue)));
+                
+                // 设置颜色（调整为更亮的蓝紫色）
+                SDL_SetRenderDrawColor(game_.getRenderer(), 100, 149, 237, alpha);
+                
+                // 绘制圆形光晕
+                drawCircle(game_.getRenderer(), centerX, centerY, radius);
+            }
+            
+            // 绘制内部发光效果（更亮的青色圆形）
+            for(int i = 0; i < 3; i++) {
+                int glowRadius = static_cast<int>((player_.width_ / 2) * (0.8f - i * 0.1f) * invinciblePulseFactor);
+                // 添加范围检查，确保alpha值在0-255范围内
+                int alphaValue = 160 - i * 40;
+                Uint8 alpha = static_cast<Uint8>(std::min(255, std::max(0, alphaValue)));
+                
+                SDL_SetRenderDrawColor(game_.getRenderer(), 135, 206, 250, alpha);
+                drawCircle(game_.getRenderer(), centerX, centerY, glowRadius);
+            }
+
+            // 添加额外的光点效果，增强亮度感
+            int numPoints = 8;
+            for(int i = 0; i < numPoints; i++) {
+                // 添加显式类型转换
+                float angle = static_cast<float>((2.0f * M_PI / numPoints) * i + skillPulseTime_ * 2.0f);
+                int pointRadius = static_cast<int>((player_.width_ / 2) * 1.1f * invinciblePulseFactor);
+                int pointX = centerX + static_cast<int>(cos(angle) * pointRadius);
+                int pointY = centerY + static_cast<int>(sin(angle) * pointRadius);
+                
+                // 绘制光点
+                for(int r = 0; r < 3; r++) {
+                    // 添加范围检查，确保alpha值在0-255范围内
+                    int alphaValue = 220 - r * 50;
+                    Uint8 alpha = static_cast<Uint8>(std::min(255, std::max(0, alphaValue)));
+                    SDL_SetRenderDrawColor(game_.getRenderer(), 200, 230, 255, alpha);
+                    drawCircle(game_.getRenderer(), pointX, pointY, 3 - r);
+                }
+            }
+    }
+
+    // 恢复之前的混合模式
+    SDL_SetRenderDrawBlendMode(game_.getRenderer(), currentBlendMode);
+    SDL_SetRenderDrawColor(game_.getRenderer(), currentR, currentG, currentB, currentA);
+}
+
+void SceneMain::drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius)
+{
+    // 使用Bresenham算法绘制圆形
+    int x = 0;
+    int y = radius;
+    int d = 3 - 2 * radius;
+
+    while (x <= y) {
+        SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
+        SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
+        SDL_RenderDrawPoint(renderer, centerX - x, centerY + y);
+        SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
+        SDL_RenderDrawPoint(renderer, centerX + y, centerY + x);
+        SDL_RenderDrawPoint(renderer, centerX + y, centerY - x);
+        SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
+        SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
+
+        x++;
+
+        if (d > 0) {
+            y--;
+            d = d + 4 * (x - y) + 10;
+        }
+        else {
+            d = d + 4 * x + 6;
+        }       
     }
 }
