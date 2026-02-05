@@ -25,6 +25,7 @@ struct Player {
 struct PlayerBullet {
     SDL_Texture* texture_ = nullptr;
     SDL_FPoint position_ = {0, 0};
+    SDL_FPoint direction_ = {0, -1};
     int width_ = 0;
     int height_ = 0;
     int speed_ = 500;
@@ -35,6 +36,7 @@ struct PlayerBullet {
 struct Enemy {
     SDL_Texture* texture_ = nullptr;
     SDL_FPoint position_ = {0, 0};
+    int hitCooldown_ = 0;
     int width_ = 0;
     int height_ = 0;
     int speed_ = 150;

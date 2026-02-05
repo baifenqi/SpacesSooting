@@ -66,7 +66,7 @@ public:
     /**
      * @brief 更新玩家状态
      */
-    void updatePlayer();
+    void updatePlayer(float deltaTime);
     
     // 玩家子弹控制
     /**
@@ -244,9 +244,13 @@ private:
     float skillPulseTime_;                // 技能脉冲动画时间
     float invincibleEffectTime_;          // 无敌技能帧动画时间
     
+    float accumulateedDamage_ = 0.0f;     // 累积伤害
+    bool hasShieldCollision_ = false;     // 是否有盾反碰撞
+    float collisionCooldown_ = 0.0f;     // 碰撞冷却时间
     float shieldEffectFrameTime_;         // 盾反技能帧动画时间
     int shieldEffectCurrentFrame_;        // 盾反技能当前帧
     SDL_Texture* shieldEffectTexture_;    // 盾反技能特效纹理
+
 
     /**
      * @brief 绘制圆形的辅助函数
@@ -256,6 +260,42 @@ private:
      * @param radius 半径
      */
     void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius);
+
+
+    //UI资源
+    SDL_Texture* heartTexture_;               // 生命值图标
+    SDL_Texture* shieldTexture_;              // 护盾图标
+    SDL_Texture* skillIconTexture_[4];        // 4个技能图标
+
+    //UI位置配置
+    const int STAUS_X = 20;                   // 状态栏X坐标
+    const int STAUS_Y = 20;                   // 状态栏Y坐标
+    const int STAUS_SPACING = 40;             // 状态栏间隔
+    const int SKILL_X_OFFSET = 20;            // 技能图标X偏移
+    const int SKILL_Y_OFFSET = 20;            // 技能图标Y偏移
+    const int SKILL_Y_START = 20;            // 技能图标Y起始位置
+    const int SKILL_SPACING = 70;            // 技能图标间隔
+
+    // UI渲染方法
+    /**
+     * @brief 渲染玩家状态
+     */
+    void renderPlayerStatus();
+
+    /**
+     * @brief 渲染技能图标
+     */
+    void renderSkillIcons();
+    
+    /**
+     * @brief 渲染技能图标
+     * @param skill 技能指针
+     * @param x X坐标
+     * @param y Y坐标
+     * @param index 技能索引
+     */
+    void renderSkillIcon(Skill* skill, int x, int y, int index);
+    
 };
 
 #endif

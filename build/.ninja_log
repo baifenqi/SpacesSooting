@@ -1,12 +1,11 @@
 # ninja log v6
-7	831	7919797403891635	CMakeFiles/_Windows.dir/src/main.cpp.obj	153637e355b33e85
-8	839	7919797403911572	CMakeFiles/_Windows.dir/src/game.cpp.obj	74d29f0938683b8f
-866	951	7919797412488418	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
-9	866	7919797403921545	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
-6	514	7919797875091789	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
-514	610	7919797880167914	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
-7	532	7919801696281122	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
-533	619	7919801701532903	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
-6	427	7919806533692435	CMakeFiles/_Windows.dir/src/game.cpp.obj	74d29f0938683b8f
-8	530	7919806533712088	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
-530	639	7919806538923153	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
+6	708	7919970922530956	CMakeFiles/_Windows.dir/src/main.cpp.obj	153637e355b33e85
+8	770	7919970922550878	CMakeFiles/_Windows.dir/src/game.cpp.obj	74d29f0938683b8f
+798	895	7919981860778912	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
+6	798	7919981852863969	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
+8	627	7919982335918079	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
+627	729	7919982342107392	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24
+7	683	7919989445658214	CMakeFiles/_Windows.dir/src/main.cpp.obj	153637e355b33e85
+9	753	7919989445678069	CMakeFiles/_Windows.dir/src/game.cpp.obj	74d29f0938683b8f
+10	855	7919989445688023	CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj	3e234b6a02770ca3
+855	945	7919989454137486	D:/codelearng/SpacesShooting/_Windows.exe	b1d01e0162a7dd24

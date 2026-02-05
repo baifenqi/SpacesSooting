@@ -15,6 +15,12 @@ SceneMain::SceneMain(): game_(Game::getInstance())
     shieldEffectFrameTime_ = 0.0f;
     shieldEffectCurrentFrame_ = 0;
     shieldEffectTexture_ = nullptr;
+
+    // 初始化玩家生命值
+    player_.hp_ = 3;
+    player_.maxHp_ = 7;
+    player_.shield_ = 0;
+    player_.maxShield_ = 5;
     
     // 初始化帧率监控器
     frameCount_ = 0;
@@ -163,6 +169,16 @@ void SceneMain::init()
     
     // 初始化帧率监控器
     lastFpsUpdateTime_ = SDL_GetTicks();
+
+    //加载状态UI图标
+    heartTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/Health UI Black.png");
+    shieldTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/Shield UI Black.png");
+
+    //加载技能图标
+    skillIconTexture_[0] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/shieldReflect.png");
+    skillIconTexture_[1] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/invincible.png");
+    skillIconTexture_[2] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/ballisticUp.png");
+    skillIconTexture_[3] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/speedUp.png");
 }
 
 void SceneMain::clean()
@@ -288,7 +304,7 @@ void SceneMain::update(float deltaTime)
 {
     keyboardControl(deltaTime);    
     updatePlayerBullets(deltaTime);
-    updatePlayer();
+    updatePlayer(deltaTime);
     spawnEnemy();
     updateEnemies(deltaTime);
     updateEnemyBullets(deltaTime);
@@ -338,7 +354,13 @@ void SceneMain::render()
     renderExplosions();
 
     // 渲染技能
-    renderSkill();    
+    renderSkill();
+    
+    // 渲染玩家状态图标
+    renderPlayerStatus();
+
+    // 渲染技能图标
+    renderSkillIcons();
 }
 
 void SceneMain::handleEvent(SDL_Event* event)
@@ -442,14 +464,25 @@ void SceneMain::keyboardControl(float deltaTime)
 }
 
 /*********玩家飞船状态更新*********************************************/
-void SceneMain::updatePlayer()
+void SceneMain::updatePlayer(float deltaTime)
 {
     if(isDeath_){
         return; // 如果玩家死亡，则不执行以下代码
     }
     
+    // 更新碰撞冷却时间
+    if(collisionCooldown_ > 0){
+        collisionCooldown_ -= deltaTime; // 这里需要传入deltaTime
+        if(collisionCooldown_ < 0){
+            collisionCooldown_ = 0;
+        }
+        return; // 在冷却期间不进行碰撞检测
+    }
+    
     if(player_.hp_ <= 0){
         isDeath_ = true;
+        player_.hp_ = 0;
+        player_.shield_ = 0;
         auto currentTime = SDL_GetTicks();
         auto explosion = new Explosion();
         explosion->position_.x = player_.position_.x + player_.width_ / 2 - explosion->width_ / 2;
@@ -476,12 +509,43 @@ void SceneMain::updatePlayer()
         };
         
         if(SDL_HasIntersection(&enemyRect, &playerRect)){
-            player_.hp_ -= 1;
-            enemy->hp_ = 0;
+
+            //设置碰撞冷却时间，防止玩家在短时间内多次碰撞
+            collisionCooldown_ = 0.5f;
+            
+            //检查无敌技能
+            if(skillManager_.invincible_ &&
+                 skillManager_.invincible_->isUsing_ &&
+                 skillManager_.invincible_->invincible_
+                 ){
+                enemy->hp_ = 0;
+            }
+            //检查盾反技能
+            else if(skillManager_.shieldReflect_ && 
+                skillManager_.shieldReflect_->isUsing_ &&
+                skillManager_.shieldReflect_->reflectBullets_){
+                    accumulateedDamage_ += 0.5f;
+                    if(accumulateedDamage_ >= 1.0f){
+                        player_.hp_ -= static_cast<int>(accumulateedDamage_);
+                        accumulateedDamage_ -= static_cast<int>(accumulateedDamage_);
+                    }
+                    enemy->hp_ = 0;
+                    hasShieldCollision_ = true;
+                }   
+            else if(player_.shield_ > 0){
+                player_.shield_ -= 1;
+                enemy->hp_ = 0;
+            }
+            else{
+                player_.hp_ -= 1;
+                enemy->hp_ = 0;                
+            }
+            Mix_PlayChannel(-1, soundEffectMap_["player_hit"], 0);
             break;
         }
     }
 }
+
 
 /*********创建玩家子弹*********************************************/
 void SceneMain::createPlayerBullets()
@@ -496,6 +560,9 @@ void SceneMain::createPlayerBullets()
     PlayerBullet* playerBullet = new PlayerBullet();
     // 设置玩家子弹属性
     *playerBullet = playerBulletTemplate_;
+    // 设置默认方向向量（向上）
+    playerBullet->direction_.x = 0;
+    playerBullet->direction_.y = -1;
     // 调整玩家子弹位置
     playerBullet->position_.x = player_.position_.x + player_.width_ / 2 - playerBullet->width_ / 2;
     playerBullet->position_.y = player_.position_.y;
@@ -527,11 +594,15 @@ void SceneMain::createPlayerBullets()
         for(const auto& pos : bulletPositions){
             PlayerBullet* extraBullet = new PlayerBullet();
             *extraBullet = playerBulletTemplate_;
+            // 设置默认方向向量（向上）
+            extraBullet->direction_.x = 0;
+            extraBullet->direction_.y = -1;
             extraBullet->position_ = pos;
             playerBullets_.push_back(extraBullet);
         }
     }
 }
+
 
 void SceneMain::updatePlayerBullets(float deltaTime)
 {   
@@ -539,7 +610,9 @@ void SceneMain::updatePlayerBullets(float deltaTime)
     for (auto it = playerBullets_.begin(); it != playerBullets_.end();){
 
         auto playerBullet = *it;
-        playerBullet->position_.y -= deltaTime * playerBullet->speed_;
+        playerBullet->position_.x += deltaTime * playerBullet->speed_ * playerBullet->direction_.x;
+        playerBullet->position_.y += deltaTime * playerBullet->speed_ * playerBullet->direction_.y;
+
         
         // 子弹超出屏幕范围删除
         if (playerBullet->position_.y + margin < 0){
@@ -549,6 +622,14 @@ void SceneMain::updatePlayerBullets(float deltaTime)
             bool isHit = false;
             if(!enemies_.empty()){
                 for(auto enemy : enemies_){
+
+                    if(enemy->hp_ <= 0) continue;
+                    
+                    // 添加碰撞冷却检查
+                    if(enemy->hitCooldown_ > 0){
+                        continue;
+                    }
+                    
                     SDL_Rect enemyRect = {
                         static_cast<int>(enemy->position_.x),
                         static_cast<int>(enemy->position_.y),
@@ -565,6 +646,7 @@ void SceneMain::updatePlayerBullets(float deltaTime)
                     
                     if(SDL_HasIntersection(&enemyRect, &playerBulletRect)){
                         enemy->hp_ -= playerBullet->damage_;
+                        enemy->hitCooldown_ = 0.1f;
                         delete playerBullet;
                         it = playerBullets_.erase(it);
                         isHit = true;
@@ -579,6 +661,7 @@ void SceneMain::updatePlayerBullets(float deltaTime)
         }
     }
 }
+
 
 void SceneMain::renderPlayerBullets()
 {
@@ -613,6 +696,13 @@ void SceneMain::updateEnemies(float deltaTime)
     for (auto it = enemies_.begin(); it != enemies_.end();){
         auto enemy = *it;
         enemy->position_.y += deltaTime * enemy->speed_;
+
+        if(enemy->hitCooldown_ > 0){
+            enemy->hitCooldown_ -= deltaTime;
+            if(enemy->hitCooldown_ < 0){
+                enemy->hitCooldown_ = 0;
+            }
+        }
         
         if (enemy->position_.y > game_.getWindowHeight()){
             delete enemy;
@@ -682,7 +772,13 @@ void SceneMain::updateEnemyBullets(float deltaTime)
             enemyBullet->position_.x < -margin){                
                 delete enemyBullet;
                 it = enemyBullets_.erase(it);
-        } else {            
+        } else {
+            
+            //如果玩家死亡，则不检测碰撞
+            if(isDeath_){
+                ++it;
+                continue;                                                            
+            }
             SDL_Rect enemyBulletRect = {
                 static_cast<int>(enemyBullet->position_.x),
                 static_cast<int>(enemyBullet->position_.y),
@@ -709,9 +805,7 @@ void SceneMain::updateEnemyBullets(float deltaTime)
                 else if(skillManager_.shieldReflect_ && 
                     skillManager_.shieldReflect_->isUsing_ && 
                     skillManager_.shieldReflect_->reflectBullets_){
-                        enemyBullet->direction_.x = -enemyBullet->direction_.x;
-                        enemyBullet->direction_.y = -enemyBullet->direction_.y;
-
+                        // 创建反弹子弹
                         auto playerBullet = new PlayerBullet();
                         playerBullet->texture_ = enemyBullet->texture_;
                         playerBullet->position_ = enemyBullet->position_;
@@ -719,12 +813,22 @@ void SceneMain::updateEnemyBullets(float deltaTime)
                         playerBullet->height_ = enemyBullet->height_;
                         playerBullet->speed_ = enemyBullet->speed_;
                         playerBullet->damage_ = enemyBullet->damage_;
+                        
+                        // 设置反弹方向：向上反弹，而不是简单反转
+                        playerBullet->direction_.x = 0;
+                        playerBullet->direction_.y = -1; // 向上
+                        
                         playerBullets_.push_back(playerBullet);
 
                         delete enemyBullet;
                         it = enemyBullets_.erase(it);
 
-                        player_.hp_ -= static_cast<int>(enemyBullet->damage_ * skillManager_.shieldReflect_->damageReflection_);
+                        // 盾反技能减少玩家受到的伤害
+                        accumulateedDamage_ += enemyBullet->damage_ * skillManager_.shieldReflect_->damageReflection_;
+                        if(accumulateedDamage_ >= 1.0f){
+                            player_.hp_ -= static_cast<int>(accumulateedDamage_);
+                            accumulateedDamage_ -= static_cast<int>(accumulateedDamage_);
+                        }
                 }
                 else if(player_.shield_ > 0){
                     player_.shield_ -= enemyBullet->damage_;
@@ -744,7 +848,8 @@ void SceneMain::updateEnemyBullets(float deltaTime)
             }
         } 
     }
-}                                     
+}
+                                     
 
 void SceneMain::renderEnemyBullets()
 {
@@ -1167,7 +1272,7 @@ void SceneMain::renderSkill()
             int scaleWidth = static_cast<int>(frameWidth * pulseFactor * scaleMultiplier);
             int scaleHeight = static_cast<int>(frameHeight * pulseFactor * scaleMultiplier);
 
-            // 计算纹理矩形(当前帧)
+            // 计算纹理(当前帧)
             SDL_Rect srcRect = {
                 shieldEffectCurrentFrame_ * frameWidth,
                 0,
@@ -1184,7 +1289,24 @@ void SceneMain::renderSkill()
             };
 
             // 渲染特效纹理
-            SDL_RenderCopy(game_.getRenderer(), shieldEffectTexture_, &srcRect, &dstRect);                    
+            SDL_RenderCopy(game_.getRenderer(), shieldEffectTexture_, &srcRect, &dstRect); 
+            
+            //碰撞反馈效果
+            if(hasShieldCollision_){
+                // 渲染碰撞反馈效果               
+                SDL_Rect shieldRect = {
+                    centerX - scaleWidth / 2,
+                    centerY - scaleHeight / 2,
+                    scaleWidth,
+                    scaleHeight
+                };
+                SDL_SetRenderDrawColor(game_.getRenderer(), 255, 255, 255, 128);
+                SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_BLEND);
+                SDL_RenderFillRect(game_.getRenderer(), &shieldRect);
+                SDL_SetRenderDrawBlendMode(game_.getRenderer(), currentBlendMode);
+                hasShieldCollision_ = false;
+            }
+            
     }
 
     // 渲染无敌技能效果
@@ -1281,4 +1403,120 @@ void SceneMain::drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int
             d = d + 4 * x + 6;
         }       
     }
+}
+
+void SceneMain::renderPlayerStatus()
+{
+    // 确保生命值不为负
+    int displayHp = std::max(0, player_.hp_);
+    //渲染生命值
+    for(int i = 0; i < displayHp; i++)
+    {
+        SDL_Rect destRect = {
+            STAUS_X + i * STAUS_SPACING,
+            STAUS_Y,
+            32,
+            32 
+        };
+        SDL_RenderCopy(game_.getRenderer(), heartTexture_, NULL, &destRect);
+    }
+    //确保护盾值不为负
+    int displayShield = std::max(0, player_.shield_);
+
+    //渲染护盾值
+    for(int i = 0; i < displayShield; i++){
+        SDL_Rect destRect = {
+            STAUS_X + i * STAUS_SPACING,
+            STAUS_Y + 32,
+            32,
+            32 
+        };
+        SDL_RenderCopy(game_.getRenderer(), shieldTexture_, NULL, &destRect);
+    }
+
+    // 如果玩家死亡，显示游戏结束提示
+    if(isDeath_){
+        // 渲染半透明黑色背景
+        SDL_Rect overlayRect = {
+            0,
+            0,
+            game_.getWindowWidth(),
+            game_.getWindowHeight()
+        };
+        SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(game_.getRenderer(), 0, 0, 0, 180);
+        SDL_RenderFillRect(game_.getRenderer(), &overlayRect);
+        SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_NONE);
+        // 这里可以添加游戏结束的UI渲染代码
+        // 例如：显示"Game Over"文本或图像
+    }
+}
+
+void SceneMain::renderSkillIcons()
+{
+    int skillX = game_.getWindowWidth() - SKILL_X_OFFSET - 64;
+    int skillY = SKILL_Y_START;
+    int index = 0;
+
+    for(auto it = skillManager_.skills_.begin(); it != skillManager_.skills_.end(); ++it)
+    {
+        renderSkillIcon(*it, skillX, skillY, index);
+        skillY += SKILL_SPACING;
+        index++;
+    }
+    
+}
+
+void SceneMain::renderSkillIcon(Skill *skill, int x, int y, int index)
+{
+    SDL_BlendMode currentBlendMode;
+    Uint8 currentR, currentG, currentB, currentA;
+    SDL_GetRenderDrawBlendMode(game_.getRenderer(), &currentBlendMode);
+    SDL_GetRenderDrawColor(game_.getRenderer(), &currentR, &currentG, &currentB, &currentA);
+
+    try{
+    // 渲染技能图标
+    SDL_Rect destRect = {
+        x,
+        y,
+        64,
+        64
+    };
+    SDL_RenderCopy(game_.getRenderer(), skillIconTexture_[index], NULL, &destRect);
+
+    // 渲染技能冷却时间
+    if(skill->currentCooldownTime_ > 0)
+    {
+        float cooldownRatio = skill->currentCooldownTime_ / skill->coolDownTime_;
+        int maskHeight = static_cast<int>(64 * cooldownRatio);
+
+        SDL_Rect maskRect = {
+            x,
+            y + 64 - maskHeight,
+            64,
+            maskHeight
+        };
+        SDL_SetRenderDrawColor(game_.getRenderer(), 0, 0, 0, 180);
+        SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_BLEND);
+        SDL_RenderFillRect(game_.getRenderer(), &maskRect);
+        SDL_SetRenderDrawBlendMode(game_.getRenderer(), SDL_BLENDMODE_NONE);
+    }
+
+    // 渲染技能激活状态
+    if(skill->isUsing_){
+        SDL_Rect activeRect = {
+            x - 2,
+            y - 2,
+            68,
+            68
+        };
+        SDL_SetRenderDrawColor(game_.getRenderer(), 255, 255, 0, 255);
+        SDL_RenderDrawRect(game_.getRenderer(), &activeRect);        
+    }
+    }catch(...){
+        // 确保即使发生异常也能恢复渲染器状态
+    }
+
+    SDL_SetRenderDrawBlendMode(game_.getRenderer(), currentBlendMode);
+    SDL_SetRenderDrawColor(game_.getRenderer(), currentR, currentG, currentB, currentA);
 }
