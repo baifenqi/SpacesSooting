@@ -33,17 +33,73 @@ struct PlayerBullet {
 };
 
 // 敌人飞船类
-struct Enemy {
-    SDL_Texture* texture_ = nullptr;
-    SDL_FPoint position_ = {0, 0};
-    int hitCooldown_ = 0;
-    int width_ = 0;
-    int height_ = 0;
-    int speed_ = 150;
-    int hp_ = 2;
+enum class EnemyType {
+    Normal,
+    Ramming    
+};
+
+class Enemy {
+    public:
+        Enemy() = default;
+        virtual ~Enemy() = default;
+
+        SDL_Texture* texture_ = nullptr;
+        SDL_FPoint position_ = {0, 0};
+        int hitCooldown_ = 0;
+        int width_ = 0;
+        int height_ = 0;
+        int speed_ = 150;
+        int hp_ = 2;
     
-    Uint32 coolDown_ = 3000;
-    Uint32 lastShotTime_ = 0;
+        Uint32 coolDown_ = 3000;
+        Uint32 lastShotTime_ = 0;
+
+        EnemyType type_ = EnemyType::Normal;
+
+        virtual void update( [[maybe_unused]] float deltaTime) {};
+        virtual void onCollosionWithPlayer(){}
+};
+
+// 普通敌人
+struct NormalEnemy : public Enemy {
+    public:
+        NormalEnemy() {
+            type_ = EnemyType::Normal;
+            hp_ = 2;
+            speed_ = 150;
+            coolDown_ = 3000;
+        }
+
+        void update(float deltaTime) override {
+            position_.y += speed_ * deltaTime;
+        }
+
+        void onCollosionWithPlayer() override {
+            
+        } 
+        
+};
+
+// 撞击敌人
+class RammingEnemy : public Enemy {
+    public:
+        RammingEnemy() {
+            type_ = EnemyType::Ramming;
+            hp_ = 3;
+            speed_ = 300;
+            coolDown_ = 0;
+            damage_ = 2;
+        }
+
+        void update(float deltaTime) override {
+            position_.y += speed_ * deltaTime;
+        }
+
+        void onCollosionWithPlayer() override {
+        
+    }
+
+    int damage_ = 2;
 };
 
 // 敌人子弹类

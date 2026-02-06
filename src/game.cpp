@@ -111,8 +111,17 @@ void Game::init()
     
     Mix_VolumeMusic(64); // 设置音量
 
+    // 初始SDL_TTF
+    if(TTF_Init() == -1){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "TTF_Init Error: %s\n", SDL_GetError());
+        isRunning_ = false;
+        return;
+    }
+
     // 初始化背景卷轴
     nearStars_->texture_ = IMG_LoadTexture(renderer_, "assets/image/Stars-A.png");
+    nearStars_->width_ *= 3 /4;
+    nearStars_->height_ *= 3 /4;
     if(nearStars_->texture_ == nullptr){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "IMG_LoadTexture Error: %s\n", SDL_GetError());
         isRunning_ = false;
@@ -136,8 +145,10 @@ void Game::init()
 
 void Game::clean()
 {
+    SDL_Log("Starting cleanup...");
     // 清理场景
     if(currentScene_ != nullptr){
+        
         currentScene_->clean();
         delete currentScene_;
         currentScene_ = nullptr;
@@ -145,6 +156,7 @@ void Game::clean()
 
     // 清理背景卷轴
     if(nearStars_->texture_ != nullptr){
+        
         SDL_DestroyTexture(nearStars_->texture_);
         nearStars_->texture_ = nullptr;
     }
@@ -167,6 +179,9 @@ void Game::clean()
     // SDL_mixer清理
     Mix_CloseAudio();
     Mix_Quit();
+
+    // SDL_TTF清理
+    TTF_Quit();    
     
     // SDL清理
     if(renderer_ != nullptr){
@@ -177,9 +192,9 @@ void Game::clean()
     if(window_ != nullptr){
         SDL_DestroyWindow(window_);
         window_ = nullptr;
-    }
-    
+    }    
     SDL_Quit();
+    SDL_Log("Cleanup completed.");
 }
 
 void Game::changeScene(Scene* scene)

@@ -1,3 +1,4 @@
+#include <string>
 #include "SceneMain.h"
 #include <SDL.h>
 #include <SDL_image.h>
@@ -50,10 +51,25 @@ void SceneMain::init()
     soundEffectMap_["hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
     soundEffectMap_["get_item"] = Mix_LoadWAV("assets/sound/eff5.wav");
 
+    //载入字体
+    scoreFont_ = TTF_OpenFont("assets/font/VonwaonBitmap-12px.ttf", 24);
+
     // 创建随机数生成器
     std::random_device rd;
     gen_ = std::mt19937(rd());
     dis_ = std::uniform_real_distribution<float>(0.0f, 1.0f);
+
+    // 初始化难度设置
+    gameTime_ = 0.0f;
+    normalSpawnInterval_ = 1.0f;
+    currentSpawnInterval_ = normalSpawnInterval_;
+    difficultyMultiplier_ = 1.0f;
+    rammingEnemyRatio_ = 0.3f;
+    maxEnemies_ = 10;
+
+    // 初始化得分
+    score_ = 0;
+    scoreColor_ = {255, 255, 255, 255};
 
     /****************初始化玩家************/
     // 飞船纹理
@@ -87,17 +103,29 @@ void SceneMain::init()
     // 设置子弹初始速度
     playerBulletTemplate_.speed_ = 600;
 
-    /****************初始化敌人飞船********/    
+    /****************初始化普通敌人飞船********/    
     // 敌人飞船纹理
-    enemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-1.png");
-    if(enemyTemplate_.texture_ == nullptr){
+    normalEnemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-1.png");
+    if(normalEnemyTemplate_.texture_ == nullptr){
         printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
-    SDL_QueryTexture(enemyTemplate_.texture_, nullptr, nullptr, &enemyTemplate_.width_, &enemyTemplate_.height_);
+    SDL_QueryTexture(normalEnemyTemplate_.texture_, nullptr, nullptr, &normalEnemyTemplate_.width_, &normalEnemyTemplate_.height_);
 
     // 调整敌人飞船大小
-    enemyTemplate_.width_ /= 4;
-    enemyTemplate_.height_ /= 4; 
+    normalEnemyTemplate_.width_ /= 4;
+    normalEnemyTemplate_.height_ /= 4; 
+
+    /********初始化撞击敌人飞船********/
+    // 敌人飞船纹理
+    rammingEnemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-2.png");
+    if(rammingEnemyTemplate_.texture_ == nullptr){
+        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    SDL_QueryTexture(rammingEnemyTemplate_.texture_, nullptr, nullptr, &rammingEnemyTemplate_.width_, &rammingEnemyTemplate_.height_);
+
+    // 调整敌人飞船大小
+    rammingEnemyTemplate_.width_ /= 4;
+    rammingEnemyTemplate_.height_ /= 4;
     
     /****************初始化敌人飞船子弹********/
     // 子弹纹理
@@ -210,10 +238,16 @@ void SceneMain::clean()
     enemies_.clear();
 
     // 清理敌人飞船模板
-    if(enemyTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(enemyTemplate_.texture_);
-        enemyTemplate_.texture_ = nullptr;
-    }
+    if(normalEnemyTemplate_.texture_ != nullptr){
+    SDL_DestroyTexture(normalEnemyTemplate_.texture_);
+    normalEnemyTemplate_.texture_ = nullptr;
+}
+
+// 清理撞击敌人模板
+if(rammingEnemyTemplate_.texture_ != nullptr){
+    SDL_DestroyTexture(rammingEnemyTemplate_.texture_);
+    rammingEnemyTemplate_.texture_ = nullptr;
+}
     
     /******清理敌人飞船子弹*****/
     // 清理敌人飞船子弹容器
@@ -279,7 +313,32 @@ void SceneMain::clean()
     if(shieldEffectTexture_ != nullptr){
         SDL_DestroyTexture(shieldEffectTexture_);
         shieldEffectTexture_ = nullptr;
+    }    
+
+    // 清理状态UI图标
+    if(heartTexture_ != nullptr){
+        SDL_DestroyTexture(heartTexture_);
+        heartTexture_ = nullptr;
     }
+
+    if(shieldTexture_ != nullptr){
+        SDL_DestroyTexture(shieldTexture_);
+        shieldTexture_ = nullptr;
+    }
+
+    // 清理得分纹理
+    if(scoreTexture_ != nullptr){
+        SDL_DestroyTexture(scoreTexture_);
+        scoreTexture_ = nullptr;
+    }
+
+    // 清理技能图标
+    for(auto& skillIconTexture : skillIconTexture_){
+        if(skillIconTexture != nullptr){
+            SDL_DestroyTexture(skillIconTexture);
+            skillIconTexture = nullptr;
+        }
+    };
 
     // 清理音乐资源
     // 清理背景音乐
@@ -297,6 +356,13 @@ void SceneMain::clean()
         }            
     }
     soundEffectMap_.clear();
+
+    // 清理字体
+    if(scoreFont_ != nullptr){
+        TTF_CloseFont(scoreFont_);
+        scoreFont_ = nullptr;
+    }
+
 }
 
 
@@ -305,7 +371,7 @@ void SceneMain::update(float deltaTime)
     keyboardControl(deltaTime);    
     updatePlayerBullets(deltaTime);
     updatePlayer(deltaTime);
-    spawnEnemy();
+    spawnEnemy(deltaTime);
     updateEnemies(deltaTime);
     updateEnemyBullets(deltaTime);
     updateExplosions(deltaTime);
@@ -322,6 +388,21 @@ void SceneMain::update(float deltaTime)
 
         // 输出帧率到控制台
         printf("FPS: %.2f\n", currentFPS_);
+    }
+
+    gameTime_ += deltaTime;
+
+    difficultyMultiplier_ = 1.0f + (gameTime_ / 30.0f) * 0.1f; // 每过30秒，难度增加0.1倍
+    currentSpawnInterval_ = normalSpawnInterval_ / difficultyMultiplier_;
+
+    rammingEnemyRatio_ = 0.3f + (difficultyMultiplier_ - 1.0f) * 0.1f; // 每过30秒，撞击敌人比例增加0.1倍
+    if (rammingEnemyRatio_ > 0.7f) {
+        rammingEnemyRatio_ = 0.7f; // 限制撞击敌人比例的最大值为0.7
+    }
+
+    maxEnemies_ = static_cast<int>(10 + (difficultyMultiplier_ - 1.0f) * 5); // 每过30秒，最大敌人数量增加5个
+    if (maxEnemies_ > 20) {
+        maxEnemies_ = 20; // 限制最大敌人数量的最大值为20
     }
 }
 
@@ -358,6 +439,9 @@ void SceneMain::render()
     
     // 渲染玩家状态图标
     renderPlayerStatus();
+
+    //渲染得分UI
+    renderScore();
 
     // 渲染技能图标
     renderSkillIcons();
@@ -446,19 +530,19 @@ void SceneMain::keyboardControl(float deltaTime)
     }
 
     /*******控制技能释放***********************************************/
-    if(keyboardState[SDL_SCANCODE_1]){
+    if(keyboardState[SDL_SCANCODE_Q]){
         activateSkill(SkillType::ShieldReflect);
     }
     
-    if(keyboardState[SDL_SCANCODE_2]){
+    if(keyboardState[SDL_SCANCODE_E]){
         activateSkill(SkillType::Invincible);
     }
     
-    if(keyboardState[SDL_SCANCODE_3]){
+    if(keyboardState[SDL_SCANCODE_R]){
         activateSkill(SkillType::BulletBallisticUp);
     }
 
-    if(keyboardState[SDL_SCANCODE_4]){
+    if(keyboardState[SDL_SCANCODE_F]){
         activateSkill(SkillType::BulletSpeedUp);
     }
 }
@@ -524,7 +608,8 @@ void SceneMain::updatePlayer(float deltaTime)
             else if(skillManager_.shieldReflect_ && 
                 skillManager_.shieldReflect_->isUsing_ &&
                 skillManager_.shieldReflect_->reflectBullets_){
-                    accumulateedDamage_ += 0.5f;
+                    int damage = (enemy->type_ == EnemyType::Ramming) ? 1 : 0;
+                    accumulateedDamage_ += damage;
                     if(accumulateedDamage_ >= 1.0f){
                         player_.hp_ -= static_cast<int>(accumulateedDamage_);
                         accumulateedDamage_ -= static_cast<int>(accumulateedDamage_);
@@ -537,7 +622,8 @@ void SceneMain::updatePlayer(float deltaTime)
                 enemy->hp_ = 0;
             }
             else{
-                player_.hp_ -= 1;
+                int damage = (enemy->type_ == EnemyType::Ramming) ? 1 : 1;
+                player_.hp_ -= damage;
                 enemy->hp_ = 0;                
             }
             Mix_PlayChannel(-1, soundEffectMap_["player_hit"], 0);
@@ -646,7 +732,7 @@ void SceneMain::updatePlayerBullets(float deltaTime)
                     
                     if(SDL_HasIntersection(&enemyRect, &playerBulletRect)){
                         enemy->hp_ -= playerBullet->damage_;
-                        enemy->hitCooldown_ = 0.1f;
+                        enemy->hitCooldown_ = static_cast<int>(0.1f);
                         delete playerBullet;
                         it = playerBullets_.erase(it);
                         isHit = true;
@@ -678,16 +764,35 @@ void SceneMain::renderPlayerBullets()
 
 
 /*********创建敌人飞船*********************************************/
-void SceneMain::spawnEnemy()
+void SceneMain::spawnEnemy(float deltaTime)
 {
-    if(dis_(gen_) > 1 / 60.0f){
-        return;    
+    static float spawnTimer = 0.0f;
+    spawnTimer += deltaTime;
+
+    if(spawnTimer < currentSpawnInterval_) {
+        return;
     }
+    spawnTimer = 0.0f;
+
+    if(enemies_.size() >= maxEnemies_){
+        return; 
+    }
+
+    float spawnChance = dis_(gen_);
     
-    Enemy* enemy = new Enemy(enemyTemplate_);
-    enemy->position_.x = dis_(gen_) * (game_.getWindowWidth() - enemy->width_);
-    enemy->position_.y = static_cast<float>(-enemy->height_);
-    enemies_.push_back(enemy);
+    // 根据动态比例生成敌人
+    if(spawnChance < rammingEnemyRatio_) {
+        RammingEnemy* enemy = new RammingEnemy(rammingEnemyTemplate_);
+        enemy->position_.x = dis_(gen_) * (game_.getWindowWidth() - enemy->width_);
+        enemy->position_.y = static_cast<float>(-enemy->height_);
+        enemies_.push_back(enemy);
+    }
+    else {
+        NormalEnemy* enemy = new NormalEnemy(normalEnemyTemplate_);
+        enemy->position_.x = dis_(gen_) * (game_.getWindowWidth() - enemy->width_);
+        enemy->position_.y = static_cast<float>(-enemy->height_);
+        enemies_.push_back(enemy);
+    }
 }
 
 void SceneMain::updateEnemies(float deltaTime)
@@ -695,10 +800,11 @@ void SceneMain::updateEnemies(float deltaTime)
     auto currentTime = SDL_GetTicks();
     for (auto it = enemies_.begin(); it != enemies_.end();){
         auto enemy = *it;
-        enemy->position_.y += deltaTime * enemy->speed_;
+
+        enemy->update(deltaTime);
 
         if(enemy->hitCooldown_ > 0){
-            enemy->hitCooldown_ -= deltaTime;
+            enemy->hitCooldown_ -= static_cast<int>(deltaTime);
             if(enemy->hitCooldown_ < 0){
                 enemy->hitCooldown_ = 0;
             }
@@ -708,7 +814,9 @@ void SceneMain::updateEnemies(float deltaTime)
             delete enemy;
             it = enemies_.erase(it);
         } else {
-            if(currentTime - enemy->lastShotTime_ > enemy->coolDown_ && isDeath_ == false){
+            if(enemy->type_ == EnemyType::Normal && 
+               currentTime - enemy->lastShotTime_ > enemy->coolDown_ && 
+               isDeath_ == false){
                 createEnemyBullets(enemy);
                 enemy->lastShotTime_ = currentTime;                
             }
@@ -875,7 +983,15 @@ void SceneMain::enemyExplode(Enemy* enemy)
     explosion->position_.y = enemy->position_.y + enemy->height_ / 2 - explosion->height_ / 2;
     explosion->startTime_ = currentTime;
     explosions_.push_back(explosion); 
-    Mix_PlayChannel(-1, soundEffectMap_["enemy_explode"], 0);  
+    Mix_PlayChannel(-1, soundEffectMap_["enemy_explode"], 0);
+    
+    if(enemy ->type_ == EnemyType::Normal){
+        score_ += 10;
+    }
+    else if(enemy ->type_ == EnemyType::Ramming){
+        score_ += 30;
+    }
+
     dropItem(enemy);  
     delete enemy;
 }
@@ -1376,7 +1492,50 @@ void SceneMain::renderSkill()
     SDL_SetRenderDrawColor(game_.getRenderer(), currentR, currentG, currentB, currentA);
 }
 
-void SceneMain::drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius)
+void SceneMain::renderPlayerStuas()
+{
+}
+
+void SceneMain::renderScore()
+{
+    std::string scoreText = "Score: " + std::to_string(score_);
+
+    SDL_Surface* scoreSurface = TTF_RenderText_Solid(scoreFont_, scoreText.c_str(), scoreColor_);
+    if(scoreSurface == nullptr){
+        SDL_Log("Failed to render text: %s", TTF_GetError());
+        return;
+    }
+    SDL_Texture* scoreTexture = SDL_CreateTextureFromSurface(game_.getRenderer(), scoreSurface);
+    if(scoreTexture == nullptr){
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        SDL_FreeSurface(scoreSurface);
+        return;
+    }
+
+    int textWidth = scoreSurface->w;
+    int textHeight = scoreSurface->h;
+    int x = (game_.getWindowWidth() - textWidth) / 2;
+    int y = 10;
+
+    SDL_Rect textRect = {x, y, textWidth, textHeight};
+
+    SDL_RenderCopy(game_.getRenderer(), scoreTexture, NULL, &textRect);
+
+    SDL_DestroyTexture(scoreTexture);
+    SDL_FreeSurface(scoreSurface);
+}
+
+
+
+void SceneMain::spawnNormalEnemy()
+{
+}
+
+void SceneMain::spawnRammingEnemy()
+{
+}
+
+void SceneMain::drawCircle(SDL_Renderer *renderer, int centerX, int centerY, int radius)
 {
     // 使用Bresenham算法绘制圆形
     int x = 0;

@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 #include <SDL_mixer.h>
+#include <SDL_ttf.h>
 #include "Scene.h"
 #include "object.h"
 #include "Game.h"
@@ -89,7 +90,7 @@ public:
     /**
      * @brief 生成敌人
      */
-    void spawnEnemy();
+    void spawnEnemy(float deltaTime);
     
     /**
      * @brief 更新敌人
@@ -204,6 +205,9 @@ private:
     // 背景音乐
     Mix_Music* bgm_;                       // 背景音乐
 
+    //字体
+    TTF_Font* scoreFont_;                       // 字体
+
     // 随机数生成器
     std::mt19937 gen_;                     // 随机数生成器
     std::uniform_real_distribution<float> dis_; // 均匀分布
@@ -219,16 +223,39 @@ private:
     // 音效资源
     std::map<std::string, Mix_Chunk*> soundEffectMap_; // 音效映射表
 
+    // 游戏难度相关
+    float gameTime_;                      // 游戏运行时间
+    float normalSpawnInterval_;    // 普通敌人生成间隔
+    float currentSpawnInterval_;           // 当前敌人生成间隔
+    float rammingEnemyRatio_;            // 撞击敌人生成比例
+    float difficultyMultiplier_;         // 难度倍率
+    int maxEnemies_;                      // 最大敌人数量
+
+    // 玩家得分
+    int score_;                           // 玩家得分
+    SDL_Texture* scoreTexture_;            // 得分纹理
+    SDL_Color scoreColor_;                 // 得分颜色
+
+    void renderPlayerStuas();
+    void renderScore();                     // 渲染得分
+
     // 玩家相关
     Player player_;                        // 玩家飞船
     PlayerBullet playerBulletTemplate_;   // 玩家子弹模板
     std::list<PlayerBullet*> playerBullets_; // 玩家子弹列表
     
-    // 敌人相关
-    Enemy enemyTemplate_;                 // 敌人模板
+    // 敌人相关    
     std::list<Enemy*> enemies_;            // 敌人列表
     EnemyBullet enemyBulletTemplate_;     // 敌人子弹模板
     std::list<EnemyBullet*> enemyBullets_; // 敌人子弹列表
+
+    //添加敌人模板
+    NormalEnemy normalEnemyTemplate_;       // 普通敌人模板
+    RammingEnemy rammingEnemyTemplate_;           // 撞击敌人模板
+
+    //敌人生成方式
+    void spawnNormalEnemy();
+    void spawnRammingEnemy();
 
     // 爆炸效果
     Explosion explosionTemplate_;         // 爆炸模板
