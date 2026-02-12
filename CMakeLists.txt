@@ -30,7 +30,9 @@ find_package(SDL2 REQUIRED)#查找SDL2库
 add_executable(${TARGET}
                      "src/main.cpp"
                      "src/game.cpp"
-                     "src/SceneMain.cpp")#引入可执行文件
+                     "src/SceneMain.cpp"
+                     "src/SceneTitle.cpp"
+                     "src/SceneEnd.cpp")#引入可执行文件
 
 # 设置编译选项
 if (MSVC)

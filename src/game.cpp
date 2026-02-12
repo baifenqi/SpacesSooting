@@ -1,9 +1,15 @@
 #include "game.h"
 #include "SceneMain.h"
+#include "SceneTitle.h"
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 #include <SDL_mixer.h>
+
+void Game::quit()
+{
+    isRunning_ = false;
+}
 
 Game::Game()
 {    
@@ -21,6 +27,8 @@ Game::Game()
     windowWidth_ = 720;
     windowHeight_ = 960;
     fps_ = 60;
+
+    score_ = 0;
 }
 
 Game::~Game()
@@ -62,7 +70,7 @@ void Game::run()
 
 void Game::init()
 {
-    frameTime_ = 1000 / fps_;
+    frameTime_ = 1000 / fps_;    
     
     // SDL初始化
     if(SDL_Init(SDL_INIT_EVERYTHING) != 0){
@@ -139,51 +147,60 @@ void Game::init()
     farStars_->speed_ = 10;
         
     // 创建场景
-    currentScene_ = new SceneMain();
+    currentScene_ = new SceneTitle();
     currentScene_->init();
 }
 
 void Game::clean()
 {
-    SDL_Log("Starting cleanup...");
-    // 清理场景
+    SDL_Log("Step 1: Starting cleanup...");
+
+    // --- 阶段 A: 音频清理 ---
+    SDL_Log("Step 2: Closing Audio...");
+    Mix_CloseAudio(); // <--- 极有可能卡在这里
+    SDL_Log("Step 2.5: Audio Closed.");
+
+    Mix_Quit();
+    SDL_Log("Step 3: Mixer Quit.");
+
+    // --- 阶段 B: 场景清理 ---
+    SDL_Log("Step 4: Cleaning Scene...");
     if(currentScene_ != nullptr){
+        currentScene_->clean(); // <--- 或者卡在这里（如果场景里有死循环或析构问题）
+        SDL_Log("Step 4.5: Scene internal clean done.");
         
-        currentScene_->clean();
         delete currentScene_;
         currentScene_ = nullptr;
     }
+    SDL_Log("Step 5: Scene object deleted.");
 
-    // 清理背景卷轴
-    if(nearStars_->texture_ != nullptr){
-        
-        SDL_DestroyTexture(nearStars_->texture_);
-        nearStars_->texture_ = nullptr;
+    // --- 阶段 C: 背景清理 ---
+    SDL_Log("Step 6: Cleaning Backgrounds...");
+    if(nearStars_ != nullptr) {
+        if(nearStars_->texture_ != nullptr){
+            SDL_DestroyTexture(nearStars_->texture_);
+            nearStars_->texture_ = nullptr;
+        }
+        delete nearStars_;
+        nearStars_ = nullptr;
     }
     
-    if(farStars_->texture_ != nullptr){
-        SDL_DestroyTexture(farStars_->texture_);
-        farStars_->texture_ = nullptr;
+    if(farStars_ != nullptr) {
+        if(farStars_->texture_ != nullptr){
+            SDL_DestroyTexture(farStars_->texture_);
+            farStars_->texture_ = nullptr;
+        }
+        delete farStars_;
+        farStars_ = nullptr;
     }
+    SDL_Log("Step 7: Backgrounds cleaned.");
 
-    // 清理Background对象
-    delete nearStars_;
-    nearStars_ = nullptr;
-    
-    delete farStars_;
-    farStars_ = nullptr;
-
-    // SDL_Image清理
+    // --- 阶段 D: 其他子系统 ---
     IMG_Quit();
-
-    // SDL_mixer清理
-    Mix_CloseAudio();
-    Mix_Quit();
-
-    // SDL_TTF清理
     TTF_Quit();    
-    
-    // SDL清理
+    SDL_Log("Step 8: IMG and TTF Quit.");
+
+    // --- 阶段 E: 核心组件 ---
     if(renderer_ != nullptr){
         SDL_DestroyRenderer(renderer_);
         renderer_ = nullptr;
@@ -194,7 +211,8 @@ void Game::clean()
         window_ = nullptr;
     }    
     SDL_Quit();
-    SDL_Log("Cleanup completed.");
+    
+    SDL_Log("Step 9: Cleanup completed.");
 }
 
 void Game::changeScene(Scene* scene)

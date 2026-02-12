@@ -1,5 +1,6 @@
 #include <string>
 #include "SceneMain.h"
+#include "SceneEnd.h"
 #include <SDL.h>
 #include <SDL_image.h>
 #include "Game.h"
@@ -27,6 +28,10 @@ SceneMain::SceneMain(): game_(Game::getInstance())
     frameCount_ = 0;
     lastFpsUpdateTime_ = 0;
     currentFPS_ = 0.0f;
+
+    changeSceneDelayed_ = false;
+    deathTimer_ = 0.0f;
+    timeEnd_ = 0.0f;
 }
 
 SceneMain::~SceneMain()
@@ -49,6 +54,8 @@ void SceneMain::init()
     soundEffectMap_["player_explode"] = Mix_LoadWAV("assets/sound/explosion1.wav");
     soundEffectMap_["enemy_explode"] = Mix_LoadWAV("assets/sound/explosion3.wav");
     soundEffectMap_["hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
+    // 补充缺失的player_hit音效，避免崩溃
+    soundEffectMap_["player_hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
     soundEffectMap_["get_item"] = Mix_LoadWAV("assets/sound/eff5.wav");
 
     //载入字体
@@ -211,97 +218,35 @@ void SceneMain::init()
 
 void SceneMain::clean()
 {
-    /******清理玩家飞船*****/
-    if(player_.texture_ != nullptr){
-        SDL_DestroyTexture(player_.texture_);  
-        player_.texture_ = nullptr;
-    }
-    
-    /*****清理玩家子弹*****/
-    // 清理子弹容器
+    // 清理动态分配的游戏对象列表
     for(auto& playerBullet : playerBullets_){
         delete playerBullet; 
     }
     playerBullets_.clear();
     
-    // 清理子弹模板
-    if(playerBulletTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(playerBulletTemplate_.texture_);
-        playerBulletTemplate_.texture_ = nullptr;
-    }
-
-    /******清理敌人飞船*****/
-    // 清理敌人飞船容器
     for(auto& enemy : enemies_){
         delete enemy; 
     }
     enemies_.clear();
-
-    // 清理敌人飞船模板
-    if(normalEnemyTemplate_.texture_ != nullptr){
-    SDL_DestroyTexture(normalEnemyTemplate_.texture_);
-    normalEnemyTemplate_.texture_ = nullptr;
-}
-
-// 清理撞击敌人模板
-if(rammingEnemyTemplate_.texture_ != nullptr){
-    SDL_DestroyTexture(rammingEnemyTemplate_.texture_);
-    rammingEnemyTemplate_.texture_ = nullptr;
-}
     
-    /******清理敌人飞船子弹*****/
-    // 清理敌人飞船子弹容器
     for(auto& enemyBullet : enemyBullets_){
         delete enemyBullet; 
     }
     enemyBullets_.clear();
     
-    // 清理敌人飞船子弹模板
-    if(enemyBulletTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(enemyBulletTemplate_.texture_);
-        enemyBulletTemplate_.texture_ = nullptr;
-    }
-
-    /******清理爆炸效果*****/
-    // 清理爆炸效果容器
     for(auto& explosion : explosions_){
         delete explosion; 
     }
     explosions_.clear();
-
-    // 清理爆炸效果模板
-    if(explosionTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(explosionTemplate_.texture_);
-        explosionTemplate_.texture_ = nullptr;
-    }
-
-    /******清理游戏道具*****/
-    // 清理游戏道具容器
+    
     for(auto& item : items_){
         if(item != nullptr){
             delete item;
         }
     }
     items_.clear();
-    
-    // 清理游戏道具模板
-    if(itemHealthPackTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(itemHealthPackTemplate_.texture_);
-        itemHealthPackTemplate_.texture_ = nullptr;
-    }
-    
-    if(itemShieldPackTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(itemShieldPackTemplate_.texture_);
-        itemShieldPackTemplate_.texture_ = nullptr;
-    }
-    
-    if(itemSkillCDPackTemplate_.texture_ != nullptr){
-        SDL_DestroyTexture(itemSkillCDPackTemplate_.texture_);
-        itemSkillCDPackTemplate_.texture_ = nullptr;
-    }
-    
 
-    // 清理技能
+    // 清理技能对象
     for(auto& skill : skillManager_.skills_){
         if(skill != nullptr){
             delete skill;
@@ -309,13 +254,34 @@ if(rammingEnemyTemplate_.texture_ != nullptr){
     }
     skillManager_.skills_.clear();
 
-    // 清理技能模板
+    // 清理音频资源
+    if(bgm_ != nullptr){
+        Mix_FreeMusic(bgm_);        
+        bgm_ = nullptr;
+    }
+
+    for (auto& soundEffect : soundEffectMap_) {
+        if(soundEffect.second != nullptr){
+            Mix_FreeChunk(soundEffect.second); 
+            soundEffect.second = nullptr;
+        }            
+    }
+    soundEffectMap_.clear();
+
+    // 清理字体资源
+    if(scoreFont_ != nullptr){
+        TTF_CloseFont(scoreFont_);
+        scoreFont_ = nullptr;
+    }
+
+    // 清理纹理资源
+    // 注意：不清理 scoreTexture_，因为它由 renderScore() 局部管理
+    
     if(shieldEffectTexture_ != nullptr){
         SDL_DestroyTexture(shieldEffectTexture_);
         shieldEffectTexture_ = nullptr;
     }    
 
-    // 清理状态UI图标
     if(heartTexture_ != nullptr){
         SDL_DestroyTexture(heartTexture_);
         heartTexture_ = nullptr;
@@ -326,48 +292,25 @@ if(rammingEnemyTemplate_.texture_ != nullptr){
         shieldTexture_ = nullptr;
     }
 
-    // 清理得分纹理
-    if(scoreTexture_ != nullptr){
-        SDL_DestroyTexture(scoreTexture_);
-        scoreTexture_ = nullptr;
-    }
-
-    // 清理技能图标
     for(auto& skillIconTexture : skillIconTexture_){
         if(skillIconTexture != nullptr){
             SDL_DestroyTexture(skillIconTexture);
             skillIconTexture = nullptr;
         }
     };
-
-    // 清理音乐资源
-    // 清理背景音乐
-    if(bgm_ != nullptr){
-        Mix_HaltMusic();
-        Mix_FreeMusic(bgm_);        
-        bgm_ = nullptr;
-    }
-
-    // 清理音效
-    for (auto& soundEffect : soundEffectMap_) {
-        if(soundEffect.second != nullptr){
-            Mix_FreeChunk(soundEffect.second); 
-            soundEffect.second = nullptr;
-        }            
-    }
-    soundEffectMap_.clear();
-
-    // 清理字体
-    if(scoreFont_ != nullptr){
-        TTF_CloseFont(scoreFont_);
-        scoreFont_ = nullptr;
-    }
-
 }
-
 
 void SceneMain::update(float deltaTime)
 {
+    // 核心修复：死亡后统一处理，停止所有逻辑，2秒后跳转
+    if (isDeath_) {
+        deathTimer_ += deltaTime;
+        if (deathTimer_ >= 2.0f) {
+            game_.changeScene(new SceneEnd());
+        }
+        return;
+    }
+
     keyboardControl(deltaTime);    
     updatePlayerBullets(deltaTime);
     updatePlayer(deltaTime);
@@ -451,7 +394,6 @@ void SceneMain::handleEvent(SDL_Event* event)
 {
     (void)event; // 声明未使用    
 }
-
 
 /*********玩家飞船键盘控制*********************************************/
 void SceneMain::keyboardControl(float deltaTime)
@@ -550,13 +492,9 @@ void SceneMain::keyboardControl(float deltaTime)
 /*********玩家飞船状态更新*********************************************/
 void SceneMain::updatePlayer(float deltaTime)
 {
-    if(isDeath_){
-        return; // 如果玩家死亡，则不执行以下代码
-    }
-    
-    // 更新碰撞冷却时间
+    // 移除死亡计时逻辑，避免重复
     if(collisionCooldown_ > 0){
-        collisionCooldown_ -= deltaTime; // 这里需要传入deltaTime
+        collisionCooldown_ -= deltaTime;
         if(collisionCooldown_ < 0){
             collisionCooldown_ = 0;
         }
@@ -574,6 +512,8 @@ void SceneMain::updatePlayer(float deltaTime)
         explosion->startTime_ = currentTime;
         explosions_.push_back(explosion);
         Mix_PlayChannel(-1, soundEffectMap_["player_explode"], 0);
+
+        game_.setScore(score_);
         return;
     }
     
@@ -608,7 +548,7 @@ void SceneMain::updatePlayer(float deltaTime)
             else if(skillManager_.shieldReflect_ && 
                 skillManager_.shieldReflect_->isUsing_ &&
                 skillManager_.shieldReflect_->reflectBullets_){
-                    int damage = (enemy->type_ == EnemyType::Ramming) ? 1 : 0;
+                    int damage = (enemy->type_ == EnemyType::Ramming) ?1 : 0;
                     accumulateedDamage_ += damage;
                     if(accumulateedDamage_ >= 1.0f){
                         player_.hp_ -= static_cast<int>(accumulateedDamage_);
@@ -622,7 +562,7 @@ void SceneMain::updatePlayer(float deltaTime)
                 enemy->hp_ = 0;
             }
             else{
-                int damage = (enemy->type_ == EnemyType::Ramming) ? 1 : 1;
+                int damage = (enemy->type_ == EnemyType::Ramming) ?1 : 1;
                 player_.hp_ -= damage;
                 enemy->hp_ = 0;                
             }
@@ -631,7 +571,6 @@ void SceneMain::updatePlayer(float deltaTime)
         }
     }
 }
-
 
 /*********创建玩家子弹*********************************************/
 void SceneMain::createPlayerBullets()
@@ -688,7 +627,6 @@ void SceneMain::createPlayerBullets()
         }
     }
 }
-
 
 void SceneMain::updatePlayerBullets(float deltaTime)
 {   
@@ -748,7 +686,6 @@ void SceneMain::updatePlayerBullets(float deltaTime)
     }
 }
 
-
 void SceneMain::renderPlayerBullets()
 {
    for(auto playerBullet : playerBullets_){
@@ -761,7 +698,6 @@ void SceneMain::renderPlayerBullets()
         SDL_RenderCopy(game_.getRenderer(), playerBullet->texture_, nullptr, &playerBulletRect);
    }
 }
-
 
 /*********创建敌人飞船*********************************************/
 void SceneMain::spawnEnemy(float deltaTime)
@@ -957,7 +893,6 @@ void SceneMain::updateEnemyBullets(float deltaTime)
         } 
     }
 }
-                                     
 
 void SceneMain::renderEnemyBullets()
 {
@@ -972,7 +907,6 @@ void SceneMain::renderEnemyBullets()
         SDL_RenderCopyEx(game_.getRenderer(), enemyBullet->texture_, nullptr, &enemyBulletRect, angle, nullptr, SDL_FLIP_NONE);
    }
 }
-
 
 /*********敌人爆炸*********************************************/
 void SceneMain::enemyExplode(Enemy* enemy)
@@ -1088,7 +1022,7 @@ void SceneMain::playerGetItem(Item* item)
     else if(item->type_ == ItemType::SkillCDPack){
         skillCDPackEffect();
     }    
-    Mix_PlayChannel(-1, soundEffectMap_["enemy_shoot"], 0);
+    Mix_PlayChannel(-1, soundEffectMap_["get_item"], 0);
 }
 
 void SceneMain::updateItems(float deltaTime)
@@ -1170,7 +1104,6 @@ void SceneMain::renderItems()
         SDL_RenderCopy(game_.getRenderer(), item->texture_, nullptr, &itemRect);
     }
 }
-
 
 void SceneMain::skillCDPackEffect()
 {
@@ -1525,8 +1458,6 @@ void SceneMain::renderScore()
     SDL_FreeSurface(scoreSurface);
 }
 
-
-
 void SceneMain::spawnNormalEnemy()
 {
 }
@@ -1623,7 +1554,6 @@ void SceneMain::renderSkillIcons()
         skillY += SKILL_SPACING;
         index++;
     }
-    
 }
 
 void SceneMain::renderSkillIcon(Skill *skill, int x, int y, int index)
@@ -1678,4 +1608,12 @@ void SceneMain::renderSkillIcon(Skill *skill, int x, int y, int index)
 
     SDL_SetRenderDrawBlendMode(game_.getRenderer(), currentBlendMode);
     SDL_SetRenderDrawColor(game_.getRenderer(), currentR, currentG, currentB, currentA);
+}
+
+void SceneMain::changeSceneDelayed(float deltaTime, float delay)
+{
+    timeEnd_ += deltaTime;
+    if(timeEnd_ > delay){
+        game_.changeScene(new SceneEnd());
+    }
 }

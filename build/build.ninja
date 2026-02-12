@@ -79,6 +79,26 @@ build CMakeFiles\_Windows.dir\src\SceneMain.cpp.obj: CXX_COMPILER___Windows_unsc
   TARGET_PDB = D:\codelearng\SpacesShooting\_Windows.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\_Windows.dir
 
+build CMakeFiles\_Windows.dir\src\SceneTitle.cpp.obj: CXX_COMPILER___Windows_unscanned_Debug D$:\codelearng\SpacesShooting\src\SceneTitle.cpp || cmake_object_order_depends_target__Windows
+  CONFIG = Debug
+  FLAGS = /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1 -std:c++17 /utf-8
+  INCLUDES = -I"D:\codelearng\stool package\sdl2\include\SDL2" -external:I"D:\codelearng\stool package\sdl2\cmake\..\include" -external:W0
+  OBJECT_DIR = CMakeFiles\_Windows.dir
+  OBJECT_FILE_DIR = CMakeFiles\_Windows.dir\src
+  TARGET_COMPILE_PDB = CMakeFiles\_Windows.dir\
+  TARGET_PDB = D:\codelearng\SpacesShooting\_Windows.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\_Windows.dir
+
+build CMakeFiles\_Windows.dir\src\SceneEnd.cpp.obj: CXX_COMPILER___Windows_unscanned_Debug D$:\codelearng\SpacesShooting\src\SceneEnd.cpp || cmake_object_order_depends_target__Windows
+  CONFIG = Debug
+  FLAGS = /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1 -std:c++17 /utf-8
+  INCLUDES = -I"D:\codelearng\stool package\sdl2\include\SDL2" -external:I"D:\codelearng\stool package\sdl2\cmake\..\include" -external:W0
+  OBJECT_DIR = CMakeFiles\_Windows.dir
+  OBJECT_FILE_DIR = CMakeFiles\_Windows.dir\src
+  TARGET_COMPILE_PDB = CMakeFiles\_Windows.dir\
+  TARGET_PDB = D:\codelearng\SpacesShooting\_Windows.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\_Windows.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target _Windows
@@ -87,7 +107,7 @@ build CMakeFiles\_Windows.dir\src\SceneMain.cpp.obj: CXX_COMPILER___Windows_unsc
 #############################################
 # Link the executable D:\codelearng\SpacesShooting\_Windows.exe
 
-build D$:\codelearng\SpacesShooting\_Windows.exe: CXX_EXECUTABLE_LINKER___Windows_Debug CMakeFiles\_Windows.dir\src\main.cpp.obj CMakeFiles\_Windows.dir\src\game.cpp.obj CMakeFiles\_Windows.dir\src\SceneMain.cpp.obj | D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2main.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_image.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_mixer.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_ttf.lib
+build D$:\codelearng\SpacesShooting\_Windows.exe: CXX_EXECUTABLE_LINKER___Windows_Debug CMakeFiles\_Windows.dir\src\main.cpp.obj CMakeFiles\_Windows.dir\src\game.cpp.obj CMakeFiles\_Windows.dir\src\SceneMain.cpp.obj CMakeFiles\_Windows.dir\src\SceneTitle.cpp.obj CMakeFiles\_Windows.dir\src\SceneEnd.cpp.obj | D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2main.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_image.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_mixer.lib D$:\codelearng\stool$ package\sdl2\cmake\..\lib\x64\SDL2_ttf.lib
   CONFIG = Debug
   FLAGS = /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1
   LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console

@@ -16,5 +16,17 @@
   "command": "D:\\vs\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -I\"D:\\codelearng\\stool package\\sdl2\\include\\SDL2\" -external:I\"D:\\codelearng\\stool package\\sdl2\\cmake\\..\\include\" -external:W0 /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1 -std:c++17 /utf-8 /FoCMakeFiles\\_Windows.dir\\src\\SceneMain.cpp.obj /FdCMakeFiles\\_Windows.dir\\ /FS -c D:\\codelearng\\SpacesShooting\\src\\SceneMain.cpp",
   "file": "D:/codelearng/SpacesShooting/src/SceneMain.cpp",
   "output": "D:/codelearng/SpacesShooting/build/CMakeFiles/_Windows.dir/src/SceneMain.cpp.obj"
+},
+{
+  "directory": "D:/codelearng/SpacesShooting/build",
+  "command": "D:\\vs\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -I\"D:\\codelearng\\stool package\\sdl2\\include\\SDL2\" -external:I\"D:\\codelearng\\stool package\\sdl2\\cmake\\..\\include\" -external:W0 /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1 -std:c++17 /utf-8 /FoCMakeFiles\\_Windows.dir\\src\\SceneTitle.cpp.obj /FdCMakeFiles\\_Windows.dir\\ /FS -c D:\\codelearng\\SpacesShooting\\src\\SceneTitle.cpp",
+  "file": "D:/codelearng/SpacesShooting/src/SceneTitle.cpp",
+  "output": "D:/codelearng/SpacesShooting/build/CMakeFiles/_Windows.dir/src/SceneTitle.cpp.obj"
+},
+{
+  "directory": "D:/codelearng/SpacesShooting/build",
+  "command": "D:\\vs\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -I\"D:\\codelearng\\stool package\\sdl2\\include\\SDL2\" -external:I\"D:\\codelearng\\stool package\\sdl2\\cmake\\..\\include\" -external:W0 /DWIN32 /D_WINDOWS  /GR /EHsc /W4 /MDd /Zi /Ob0 /Od /RTC1 -std:c++17 /utf-8 /FoCMakeFiles\\_Windows.dir\\src\\SceneEnd.cpp.obj /FdCMakeFiles\\_Windows.dir\\ /FS -c D:\\codelearng\\SpacesShooting\\src\\SceneEnd.cpp",
+  "file": "D:/codelearng/SpacesShooting/src/SceneEnd.cpp",
+  "output": "D:/codelearng/SpacesShooting/build/CMakeFiles/_Windows.dir/src/SceneEnd.cpp.obj"
 }
 ]

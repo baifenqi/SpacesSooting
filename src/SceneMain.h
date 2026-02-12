@@ -322,6 +322,11 @@ private:
      * @param index 技能索引
      */
     void renderSkillIcon(Skill* skill, int x, int y, int index);
+
+    bool changeSceneDelayed_;
+    float deathTimer_;
+    float timeEnd_ = 0.0f;
+    void changeSceneDelayed(float deltaTime,float delay);
     
 };
 

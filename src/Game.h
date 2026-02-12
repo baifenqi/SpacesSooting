@@ -94,7 +94,15 @@ public:
      * @brief 获取窗口高度
      * @return 窗口高度
      */
-    int getWindowHeight() { return windowHeight_; }
+    int getWindowHeight() { return windowHeight_; }    
+
+    /**
+     * @brief 退出游戏
+     */
+    void  quit();
+
+    int getScore() const { return score_; }
+    void setScore(int score) { score_ = score; }
 
 private:
     /**
@@ -126,6 +134,8 @@ private:
 
     Background* nearStars_;       // 近景星星
     Background* farStars_;        // 远景星星
+
+    int score_;                   // 得分
 };
 
 #endif 
