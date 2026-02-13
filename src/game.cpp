@@ -84,6 +84,7 @@ void Game::init()
     if(window_ == nullptr){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
 
@@ -92,6 +93,8 @@ void Game::init()
     if(renderer_ == nullptr){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateRenderer Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
        
@@ -100,6 +103,9 @@ void Game::init()
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "IMG_Init Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
 
@@ -107,6 +113,10 @@ void Game::init()
     if (Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG) != (MIX_INIT_MP3 | MIX_INIT_OGG)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Mix_Init Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        IMG_Quit(); // 初始化失败时清理SDL_image
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
 
@@ -114,6 +124,11 @@ void Game::init()
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Mix_OpenAudio Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        Mix_Quit(); // 初始化失败时清理SDL_mixer
+        IMG_Quit(); // 初始化失败时清理SDL_image
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
     
@@ -123,6 +138,12 @@ void Game::init()
     if(TTF_Init() == -1){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "TTF_Init Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        Mix_CloseAudio(); // 初始化失败时关闭音频
+        Mix_Quit(); // 初始化失败时清理SDL_mixer
+        IMG_Quit(); // 初始化失败时清理SDL_image
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
 
@@ -133,6 +154,13 @@ void Game::init()
     if(nearStars_->texture_ == nullptr){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "IMG_LoadTexture Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        TTF_Quit(); // 初始化失败时清理SDL_ttf
+        Mix_CloseAudio(); // 初始化失败时关闭音频
+        Mix_Quit(); // 初始化失败时清理SDL_mixer
+        IMG_Quit(); // 初始化失败时清理SDL_image
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
     SDL_QueryTexture(nearStars_->texture_, nullptr, nullptr, &nearStars_->width_, &nearStars_->height_);
@@ -141,6 +169,14 @@ void Game::init()
     if(farStars_->texture_ == nullptr){
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "IMG_LoadTexture Error: %s\n", SDL_GetError());
         isRunning_ = false;
+        SDL_DestroyTexture(nearStars_->texture_); // 清理已加载的纹理
+        TTF_Quit(); // 初始化失败时清理SDL_ttf
+        Mix_CloseAudio(); // 初始化失败时关闭音频
+        Mix_Quit(); // 初始化失败时清理SDL_mixer
+        IMG_Quit(); // 初始化失败时清理SDL_image
+        SDL_DestroyRenderer(renderer_); // 初始化失败时清理渲染器
+        SDL_DestroyWindow(window_); // 初始化失败时清理窗口
+        SDL_Quit(); // 初始化失败时清理SDL
         return;
     }
     SDL_QueryTexture(farStars_->texture_, nullptr, nullptr, &farStars_->width_, &farStars_->height_);
@@ -157,16 +193,16 @@ void Game::clean()
 
     // --- 阶段 A: 音频清理 ---
     SDL_Log("Step 2: Closing Audio...");
-    Mix_CloseAudio(); // <--- 极有可能卡在这里
+    Mix_HaltMusic(); // 停止音乐
+    Mix_CloseAudio();
     SDL_Log("Step 2.5: Audio Closed.");
-
     Mix_Quit();
     SDL_Log("Step 3: Mixer Quit.");
 
     // --- 阶段 B: 场景清理 ---
     SDL_Log("Step 4: Cleaning Scene...");
     if(currentScene_ != nullptr){
-        currentScene_->clean(); // <--- 或者卡在这里（如果场景里有死循环或析构问题）
+        currentScene_->clean();
         SDL_Log("Step 4.5: Scene internal clean done.");
         
         delete currentScene_;

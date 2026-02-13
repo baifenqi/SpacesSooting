@@ -36,6 +36,7 @@ SceneMain::SceneMain(): game_(Game::getInstance())
 
 SceneMain::~SceneMain()
 {
+    // 清理工作在clean()方法中完成
 }
 
 /******************主控制台*************/
@@ -44,22 +45,39 @@ void SceneMain::init()
     // 读取并播放背景音乐
     bgm_ = Mix_LoadMUS("assets/music/03_Racing_Through_Asteroids_Loop.ogg");
     if(bgm_ == nullptr){
-        printf("Failed to load music! SDL_mixer Error: %s\n", Mix_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load music! SDL_mixer Error: %s\n", Mix_GetError());
+    } else {
+        if(Mix_PlayMusic(bgm_, -1) == -1) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to play music! SDL_mixer Error: %s\n", Mix_GetError());
+        }
     }
-    Mix_PlayMusic(bgm_, -1);
 
     // 读取音效资源
-    soundEffectMap_["player_shoot"] = Mix_LoadWAV("assets/sound/laser_shoot4.wav");
-    soundEffectMap_["enemy_shoot"] = Mix_LoadWAV("assets/sound/xs_laser.wav");
-    soundEffectMap_["player_explode"] = Mix_LoadWAV("assets/sound/explosion1.wav");
-    soundEffectMap_["enemy_explode"] = Mix_LoadWAV("assets/sound/explosion3.wav");
-    soundEffectMap_["hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
-    // 补充缺失的player_hit音效，避免崩溃
-    soundEffectMap_["player_hit"] = Mix_LoadWAV("assets/sound/eff11.wav");
-    soundEffectMap_["get_item"] = Mix_LoadWAV("assets/sound/eff5.wav");
+    std::map<std::string, const char*> soundFiles = {
+        {"player_shoot", "assets/sound/laser_shoot4.wav"},
+        {"enemy_shoot", "assets/sound/xs_laser.wav"},
+        {"player_explode", "assets/sound/explosion1.wav"},
+        {"enemy_explode", "assets/sound/explosion3.wav"},
+        {"hit", "assets/sound/eff11.wav"},
+        {"player_hit", "assets/sound/eff11.wav"},
+        {"get_item", "assets/sound/eff5.wav"}
+    };
+
+    for(const auto& soundPair : soundFiles) {
+        Mix_Chunk* chunk = Mix_LoadWAV(soundPair.second);
+        if(chunk == nullptr) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load sound effect %s! SDL_mixer Error: %s\n", 
+                        soundPair.first.c_str(), Mix_GetError());
+        } else {
+            soundEffectMap_[soundPair.first] = chunk;
+        }
+    }
 
     //载入字体
     scoreFont_ = TTF_OpenFont("assets/font/VonwaonBitmap-12px.ttf", 24);
+    if(scoreFont_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load font! SDL_ttf Error: %s\n", TTF_GetError());
+    }
 
     // 创建随机数生成器
     std::random_device rd;
@@ -82,7 +100,7 @@ void SceneMain::init()
     // 飞船纹理
     player_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/SpaceShip.png");
     if(player_.texture_ == nullptr){ 
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(player_.texture_, nullptr, nullptr, &player_.width_, &player_.height_);
 
@@ -99,7 +117,7 @@ void SceneMain::init()
     // 子弹纹理
     playerBulletTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/laser-1.png");
     if(playerBulletTemplate_.texture_ == nullptr){ 
-        printf("Failed to load bullet texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load bullet texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(playerBulletTemplate_.texture_, nullptr, nullptr, &playerBulletTemplate_.width_, &playerBulletTemplate_.height_);
 
@@ -114,7 +132,7 @@ void SceneMain::init()
     // 敌人飞船纹理
     normalEnemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-1.png");
     if(normalEnemyTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(normalEnemyTemplate_.texture_, nullptr, nullptr, &normalEnemyTemplate_.width_, &normalEnemyTemplate_.height_);
 
@@ -126,7 +144,7 @@ void SceneMain::init()
     // 敌人飞船纹理
     rammingEnemyTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/insect-2.png");
     if(rammingEnemyTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(rammingEnemyTemplate_.texture_, nullptr, nullptr, &rammingEnemyTemplate_.width_, &rammingEnemyTemplate_.height_);
 
@@ -138,7 +156,7 @@ void SceneMain::init()
     // 子弹纹理
     enemyBulletTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bullet-1.png");
     if(enemyBulletTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(enemyBulletTemplate_.texture_, nullptr, nullptr, &enemyBulletTemplate_.width_, &enemyBulletTemplate_.height_);
 
@@ -150,7 +168,7 @@ void SceneMain::init()
     // 爆炸纹理
     explosionTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/effect/explosion.png");
     if(explosionTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(explosionTemplate_.texture_, nullptr, nullptr, &explosionTemplate_.width_, &explosionTemplate_.height_);
     
@@ -163,7 +181,7 @@ void SceneMain::init()
     // 血包纹理
     itemHealthPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_life.png");
     if(itemHealthPackTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(itemHealthPackTemplate_.texture_, nullptr, nullptr, &itemHealthPackTemplate_.width_, &itemHealthPackTemplate_.height_);
     
@@ -174,7 +192,7 @@ void SceneMain::init()
     // 盾包纹理
     itemShieldPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_shield.png");
     if(itemShieldPackTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(itemShieldPackTemplate_.texture_, nullptr, nullptr, &itemShieldPackTemplate_.width_, &itemShieldPackTemplate_.height_);
     
@@ -185,7 +203,7 @@ void SceneMain::init()
     // CD包纹理
     itemSkillCDPackTemplate_.texture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/bonus_time.png");
     if(itemSkillCDPackTemplate_.texture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     SDL_QueryTexture(itemSkillCDPackTemplate_.texture_, nullptr, nullptr, &itemSkillCDPackTemplate_.width_, &itemSkillCDPackTemplate_.height_);
     
@@ -199,7 +217,7 @@ void SceneMain::init()
     // 加载盾反技能特效纹理
     shieldEffectTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/effect/OrangeAura1.png");
     if(shieldEffectTexture_ == nullptr){
-        printf("Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
     }
     
     // 初始化帧率监控器
@@ -207,41 +225,76 @@ void SceneMain::init()
 
     //加载状态UI图标
     heartTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/Health UI Black.png");
+    if(heartTexture_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    
     shieldTexture_ = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/Shield UI Black.png");
+    if(shieldTexture_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
 
     //加载技能图标
     skillIconTexture_[0] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/shieldReflect.png");
+    if(skillIconTexture_[0] == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    
     skillIconTexture_[1] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/invincible.png");
+    if(skillIconTexture_[1] == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    
     skillIconTexture_[2] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/ballisticUp.png");
+    if(skillIconTexture_[2] == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
+    
     skillIconTexture_[3] = IMG_LoadTexture(Game::getInstance().getRenderer(), "assets/image/speedUp.png");
+    if(skillIconTexture_[3] == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture! SDL_image Error: %s\n", IMG_GetError());
+    }
 }
 
 void SceneMain::clean()
 {
     // 清理动态分配的游戏对象列表
     for(auto& playerBullet : playerBullets_){
-        delete playerBullet; 
+        if(playerBullet != nullptr) {
+            delete playerBullet; 
+            playerBullet = nullptr;
+        }
     }
     playerBullets_.clear();
     
     for(auto& enemy : enemies_){
-        delete enemy; 
+        if(enemy != nullptr) {
+            delete enemy; 
+            enemy = nullptr;
+        }
     }
     enemies_.clear();
     
     for(auto& enemyBullet : enemyBullets_){
-        delete enemyBullet; 
+        if(enemyBullet != nullptr) {
+            delete enemyBullet; 
+            enemyBullet = nullptr;
+        }
     }
     enemyBullets_.clear();
     
     for(auto& explosion : explosions_){
-        delete explosion; 
+        if(explosion != nullptr) {
+            delete explosion; 
+            explosion = nullptr;
+        }
     }
     explosions_.clear();
     
     for(auto& item : items_){
         if(item != nullptr){
             delete item;
+            item = nullptr;
         }
     }
     items_.clear();
@@ -250,12 +303,14 @@ void SceneMain::clean()
     for(auto& skill : skillManager_.skills_){
         if(skill != nullptr){
             delete skill;
+            skill = nullptr;
         }
     }
     skillManager_.skills_.clear();
 
     // 清理音频资源
     if(bgm_ != nullptr){
+        Mix_HaltMusic(); // 先停止音乐
         Mix_FreeMusic(bgm_);        
         bgm_ = nullptr;
     }
@@ -330,7 +385,7 @@ void SceneMain::update(float deltaTime)
         lastFpsUpdateTime_ = currentTime;
 
         // 输出帧率到控制台
-        printf("FPS: %.2f\n", currentFPS_);
+        SDL_Log("FPS: %.2f\n", currentFPS_);
     }
 
     gameTime_ += deltaTime;
@@ -392,7 +447,8 @@ void SceneMain::render()
 
 void SceneMain::handleEvent(SDL_Event* event)
 {
-    (void)event; // 声明未使用    
+    // 事件处理在keyboardControl中完成
+    (void)event; // 声明未使用，避免编译器警告
 }
 
 /*********玩家飞船键盘控制*********************************************/
@@ -710,7 +766,7 @@ void SceneMain::spawnEnemy(float deltaTime)
     }
     spawnTimer = 0.0f;
 
-    if(enemies_.size() >= maxEnemies_){
+    if(enemies_.size() >= static_cast<size_t>(maxEnemies_)){
         return; 
     }
 
@@ -1427,6 +1483,7 @@ void SceneMain::renderSkill()
 
 void SceneMain::renderPlayerStuas()
 {
+    // 此方法已废弃，使用renderPlayerStatus代替
 }
 
 void SceneMain::renderScore()
@@ -1435,12 +1492,12 @@ void SceneMain::renderScore()
 
     SDL_Surface* scoreSurface = TTF_RenderText_Solid(scoreFont_, scoreText.c_str(), scoreColor_);
     if(scoreSurface == nullptr){
-        SDL_Log("Failed to render text: %s", TTF_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to render text: %s", TTF_GetError());
         return;
     }
     SDL_Texture* scoreTexture = SDL_CreateTextureFromSurface(game_.getRenderer(), scoreSurface);
     if(scoreTexture == nullptr){
-        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture: %s", SDL_GetError());
         SDL_FreeSurface(scoreSurface);
         return;
     }
@@ -1460,10 +1517,12 @@ void SceneMain::renderScore()
 
 void SceneMain::spawnNormalEnemy()
 {
+    // 此方法已废弃，使用spawnEnemy代替
 }
 
 void SceneMain::spawnRammingEnemy()
 {
+    // 此方法已废弃，使用spawnEnemy代替
 }
 
 void SceneMain::drawCircle(SDL_Renderer *renderer, int centerX, int centerY, int radius)

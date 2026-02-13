@@ -77,7 +77,6 @@ struct NormalEnemy : public Enemy {
         void onCollosionWithPlayer() override {
             
         } 
-        
 };
 
 // 撞击敌人
@@ -224,4 +223,4 @@ struct Background {
     int speed_ = 30;
 };
 
-#endif
+#endif // OBJECT_H

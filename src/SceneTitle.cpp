@@ -38,7 +38,7 @@ SceneTitle::~SceneTitle() {
 }
 
 void SceneTitle::init() {
-    
+    // 初始化场景资源
 }
 
 void SceneTitle::update(float deltaTime) {
@@ -215,6 +215,9 @@ void SceneTitle::handleEvent(SDL_Event* event) {
 }
 
 void SceneTitle::clean() {
+    // 清理星星背景
+    stars_.clear();
+    
     // 在清理场景前重置渲染颜色为默认值
     SDL_SetRenderDrawColor(game_.getRenderer(), 0, 0, 0, 255);
 }

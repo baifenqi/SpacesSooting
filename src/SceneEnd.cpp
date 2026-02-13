@@ -47,8 +47,19 @@ SceneEnd::~SceneEnd() {
 void SceneEnd::init() {
     // 加载支持中文的字体（替换为你的中文字体路径）
     titleFont_ = TTF_OpenFont("assets/font/VonwaonBitmap-12px.ttf", 48);
+    if(titleFont_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load title font! SDL_ttf Error: %s\n", TTF_GetError());
+    }
+    
     textFont_ = TTF_OpenFont("assets/font/VonwaonBitmap-12px.ttf", 24);
+    if(textFont_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load text font! SDL_ttf Error: %s\n", TTF_GetError());
+    }
+    
     scoreFont_ = TTF_OpenFont("assets/font/VonwaonBitmap-12px.ttf", 20);
+    if(scoreFont_ == nullptr){
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load score font! SDL_ttf Error: %s\n", TTF_GetError());
+    }
 
     // 加载得分榜
     loadHighScores();
@@ -339,7 +350,7 @@ void SceneEnd::saveHighScores() {
     // 打开文件进行写入
     std::ofstream outFile(SCOREBOARD_FILE);
     if (!outFile.is_open()) {
-        SDL_Log("Failed to open scoreboard file for writing: %s", SCOREBOARD_FILE.c_str());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to open scoreboard file for writing: %s", SCOREBOARD_FILE.c_str());
         return;
     }
     
@@ -360,13 +371,15 @@ void SceneEnd::loadHighScores() {
     // 打开文件进行读取
     std::ifstream inFile(SCOREBOARD_FILE);
     if (!inFile.is_open()) {
-        SDL_Log("Failed to open scoreboard file for reading: %s", SCOREBOARD_FILE.c_str());
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to open scoreboard file for reading: %s", SCOREBOARD_FILE.c_str());
         return;
     }
     
     // 读取得分记录
     std::string line;
+    int lineNumber = 0;
     while (std::getline(inFile, line)) {
+        lineNumber++;
         std::istringstream iss(line);
         std::string playerName, scoreStr, date;
         
@@ -377,27 +390,25 @@ void SceneEnd::loadHighScores() {
             ScoreRecord record;
             try {
                 record.score = std::stoi(scoreStr);
-            } catch (...) {
-                record.score = 0; // 如果转换失败，默认为0
+            } catch (const std::exception& e) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid score format at line %d: %s", lineNumber, e.what());
+                continue; // 跳过无效记录
             }
             record.date = date;
             
             highScores_.push_back(record);
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid format at line %d", lineNumber);
         }
     }
     
     inFile.close();
     
-    // ========== 核心修改：冒泡排序（无语法歧义） ==========
-    for (size_t i = 0; i < highScores_.size(); ++i) {
-        for (size_t j = 0; j < highScores_.size() - i - 1; ++j) {
-            if (highScores_[j].score < highScores_[j+1].score) {
-                ScoreRecord temp = highScores_[j];
-                highScores_[j] = highScores_[j+1];
-                highScores_[j+1] = temp;
-            }
-        }
-    }
+    // 使用更高效的排序算法
+    std::sort(highScores_.begin(), highScores_.end(), 
+              [](const ScoreRecord& a,const ScoreRecord& b) {
+                  return a.score > b.score;
+              });
     
     // 限制得分榜记录数量
     if (highScores_.size() > static_cast<size_t>(maxHighScores_)) {
@@ -427,16 +438,11 @@ void SceneEnd::addScoreToLeaderboard(int score) {
     // 添加到得分榜
     highScores_.push_back(newRecord);
     
-    // ========== 核心修改：冒泡排序（无语法歧义） ==========
-    for (size_t i = 0; i < highScores_.size(); ++i) {
-        for (size_t j = 0; j < highScores_.size() - i - 1; ++j) {
-            if (highScores_[j].score < highScores_[j+1].score) {
-                ScoreRecord temp = highScores_[j];
-                highScores_[j] = highScores_[j+1];
-                highScores_[j+1] = temp;
-            }
-        }
-    }
+    // 使用更高效的排序算法
+    std::sort(highScores_.begin(), highScores_.end(), 
+              [](const ScoreRecord& a,const ScoreRecord& b) {
+                  return a.score > b.score;
+              });
     
     // 限制得分榜记录数量
     if (highScores_.size() > static_cast<size_t>(maxHighScores_)) {
@@ -485,7 +491,6 @@ void SceneEnd::handleBackspace() {
         }
     }
 }
-
 
 void SceneEnd::switchToTitleScene() {
     // 切换到标题场景

@@ -330,4 +330,4 @@ private:
     
 };
 
-#endif
+#endif // SCENEMAIN_H

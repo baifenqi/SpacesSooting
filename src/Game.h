@@ -99,9 +99,18 @@ public:
     /**
      * @brief 退出游戏
      */
-    void  quit();
+    void quit();
 
+    /**
+     * @brief 获取得分
+     * @return 当前得分
+     */
     int getScore() const { return score_; }
+    
+    /**
+     * @brief 设置得分
+     * @param score 新的得分值
+     */
     void setScore(int score) { score_ = score; }
 
 private:
@@ -138,4 +147,4 @@ private:
     int score_;                   // 得分
 };
 
-#endif 
+#endif  // GAME_H
